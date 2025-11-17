@@ -1,0 +1,25 @@
+# Unity
+*.asset -text
+*.unity -text
+*.prefab -text
+*.mat -text
+*.meta -text
+*.anim -text
+*.controller -text
+*.preset -text
+
+# Large files
+*.fbx binary
+*.png binary
+*.jpg binary
+*.psd binary
+*.tga binary
+*.tif binary
+*.aif binary
+*.aiff binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.mov binary
+*.avi binary
+*.mp4 binary
