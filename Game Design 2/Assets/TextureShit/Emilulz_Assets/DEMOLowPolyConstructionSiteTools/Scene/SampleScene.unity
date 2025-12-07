@@ -6036,7 +6036,7 @@ GameObject:
   - component: {fileID: 1548227066}
   - component: {fileID: 1548227065}
   m_Layer: 5
-  m_Name: Cube (4)
+  m_Name: Wall Horizontal Right
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
