@@ -1,0 +1,141 @@
+using UnityEngine;
+using System.Collections.Generic;
+using System.Linq;
+
+public class StructureBuilder : MonoBehaviour
+{
+    public GameObject beamPrefab; // Prefab with a LineRenderer
+    public LayerMask nodeLayer;
+    public GameManager gameManager;
+    public float beamWidth = 0.05f;
+
+    private Node startNode;
+    private LineRenderer tempLine;
+    private bool isDrawing = false;
+    private Camera mainCamera;
+
+    void Start()
+    {
+        mainCamera = Camera.main;
+        if (gameManager == null)
+        {
+            gameManager = FindObjectOfType<GameManager>();
+        }
+    }
+
+    void Update()
+    {
+        if (gameManager.currentMode != GameMode.Build) return;
+
+        HandleInput();
+    }
+
+    private void HandleInput()
+    {
+        if (Input.GetMouseButtonDown(0))
+        {
+            Node clickedNode = GetNodeUnderMouse();
+            if (clickedNode != null)
+            {
+                StartDrawing(clickedNode);
+            }
+        }
+        else if (Input.GetMouseButton(0) && isDrawing)
+        {
+            UpdateDrawing();
+        }
+        else if (Input.GetMouseButtonUp(0) && isDrawing)
+        {
+            FinishDrawing();
+        }
+    }
+
+    private void StartDrawing(Node node)
+    {
+        // Connectivity Check: Ensure the starting node is connected to an anchor
+        if (!gameManager.IsNodeConnectedToAnchor(node.id))
+        {
+            Debug.LogWarning("Cannot start building from a disconnected node.");
+            return;
+        }
+
+        startNode = node;
+        isDrawing = true;
+
+        // Create a temporary line renderer for visual feedback
+        GameObject tempLineObj = new GameObject("TempLine");
+        tempLine = tempLineObj.AddComponent<LineRenderer>();
+        tempLine.startWidth = beamWidth;
+        tempLine.endWidth = beamWidth;
+        tempLine.positionCount = 2;
+        // A simple material so the line is visible
+        tempLine.material = new Material(Shader.Find("Legacy Shaders/Particles/Alpha Blended Premultiply"));
+        tempLine.startColor = Color.white;
+        tempLine.endColor = Color.white;
+        tempLine.SetPosition(0, startNode.transform.position);
+    }
+
+    private void UpdateDrawing()
+    {
+        Vector3 mousePos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
+        mousePos.z = 0;
+        tempLine.SetPosition(1, mousePos);
+    }
+
+    private void FinishDrawing()
+    {
+        Node endNode = GetNodeUnderMouse();
+
+        if (tempLine != null)
+        {
+            Destroy(tempLine.gameObject);
+        }
+
+        isDrawing = false;
+        if (startNode == null || endNode == null || startNode == endNode)
+        {
+            return;
+        }
+
+        // Final connectivity check for the end node
+        if (!gameManager.IsNodeConnectedToAnchor(endNode.id) && !gameManager.IsNodeConnectedToAnchor(startNode.id))
+        {
+             Debug.LogWarning("One of the nodes must be connected to the main structure.");
+             return;
+        }
+        
+        // Check if this element already exists
+        if (gameManager.DoesElementExist(startNode.id, endNode.id))
+        {
+            Debug.LogWarning("This beam already exists.");
+            return;
+        }
+
+        // Add the structural element
+        gameManager.AddElement(startNode.id, endNode.id);
+
+        // Create the permanent visual for the beam
+        if (beamPrefab != null)
+        {
+            GameObject beamObj = Instantiate(beamPrefab, Vector3.zero, Quaternion.identity);
+            LineRenderer beamLine = beamObj.GetComponent<LineRenderer>();
+            beamLine.startWidth = beamWidth;
+            beamLine.endWidth = beamWidth;
+            beamLine.SetPosition(0, startNode.transform.position);
+            beamLine.SetPosition(1, endNode.transform.position);
+            beamObj.name = $"Beam_{startNode.id}_{endNode.id}";
+        }
+        
+        startNode = null;
+    }
+
+    private Node GetNodeUnderMouse()
+    {
+        RaycastHit2D hit = Physics2D.Raycast(mainCamera.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity, nodeLayer);
+        if (hit.collider != null)
+        {
+            return hit.collider.GetComponent<Node>();
+        }
+        return null;
+    }
+}
