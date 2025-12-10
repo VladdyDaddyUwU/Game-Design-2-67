@@ -111,22 +111,51 @@ public class StructureBuilder : MonoBehaviour
             return;
         }
 
-        // Add the structural element
+        // Add the structural element first
         gameManager.AddElement(startNode.id, endNode.id);
 
         // Create the permanent visual for the beam
+        GameObject beamObj = null;
         if (beamPrefab != null)
         {
-            GameObject beamObj = Instantiate(beamPrefab, Vector3.zero, Quaternion.identity);
+            beamObj = Instantiate(beamPrefab, Vector3.zero, Quaternion.identity);
             LineRenderer beamLine = beamObj.GetComponent<LineRenderer>();
             beamLine.startWidth = beamWidth;
             beamLine.endWidth = beamWidth;
             beamLine.SetPosition(0, startNode.transform.position);
             beamLine.SetPosition(1, endNode.transform.position);
-            beamObj.name = $"Beam_{startNode.id}_{endNode.id}";
+            
+            // New Naming Convention: Beam(x1,y1)-(x2,y2)
+            beamObj.name = $"Beam({startNode.x_index},{startNode.y_index})-({endNode.x_index},{endNode.y_index})";
+        }
+
+        // Post-placement validation: Check for overlaps.
+        // We check if the NEWLY added beam overlaps with any OLDER beam.
+        // IsElementContained iterates through ALL beams. We need to be careful not to match the beam against itself.
+        // Actually, the previous logic compared the "new candidate" against "existing list". 
+        // Now the "new candidate" is IN the list.
+        // So we need to modify IsElementContained or call a specific check here.
+        
+        // Let's use a slightly modified approach: Check if the *just added* beam overlaps with any *other* beam.
+        if (CheckAndRemoveIfInvalid(startNode, endNode, beamObj))
+        {
+             return;
         }
         
         startNode = null;
+    }
+
+    private bool CheckAndRemoveIfInvalid(Node node1, Node node2, GameObject beamObj)
+    {
+        if (gameManager.IsNewElementOverlappingExisting(node1, node2)) 
+        {
+            Debug.LogWarning("Invalid beam: Overlaps with existing structure. Removing.");
+            gameManager.RemoveElement(node1.id, node2.id);
+            if (beamObj != null) Destroy(beamObj);
+            startNode = null; // Reset state
+            return true;
+        }
+        return false;
     }
 
     private Node GetNodeUnderMouse()

@@ -18,15 +18,26 @@ public class GridController : MonoBehaviour
     [Header("Visuals")]
     public GameObject nodePrefab; // Assign a circle sprite prefab with a Collider2D and the Node.cs script
     public float nodeScale = 0.1f;
+    public bool autoInitializeGameManager = true;
 
     private Vector2[,] intersectionPoints;
     private Mesh gridMesh;
+    
+    // Runtime grid state
     private int gridWidth;
     private int gridHeight;
     private List<GameObject> nodeObjects = new List<GameObject>();
     private List<Node> nodeComponents = new List<Node>();
     private Transform nodeHolder;
-    private bool isDirty = true; // Flag to trigger regeneration
+    private bool isDirty = true;
+
+    // Locked grid parameters to ensure stability across repairs/reloads
+    [SerializeField, HideInInspector] private float lockedCellSize = 1f;
+    [SerializeField, HideInInspector] private float lockedXOffset = 0f;
+    [SerializeField, HideInInspector] private float lockedYOffset = 0f;
+    [SerializeField, HideInInspector] private int lockedGridWidth = 0;
+    [SerializeField, HideInInspector] private int lockedGridHeight = 0;
+    [SerializeField, HideInInspector] private bool initializedInPlayMode = false;
 
     [System.Serializable]
     public struct GridEdge
@@ -44,13 +55,18 @@ public class GridController : MonoBehaviour
     void Awake()
     {
         GetComponent<MeshFilter>().mesh = gridMesh = new Mesh();
-        // Don't call GenerateGrid directly, let Update handle it on the first frame
+        // Force a regeneration on startup to sync state, but respect Play Mode lock if already set
         isDirty = true;
+        
+        // If we are entering play mode or starting up, check if we need to reset the lock
+        if (!Application.isPlaying)
+        {
+            initializedInPlayMode = false;
+        }
     }
 
     void Update()
     {
-        // This now runs in the editor and in play mode thanks to [ExecuteAlways]
         if (isDirty)
         {
             GenerateGrid();
@@ -60,7 +76,6 @@ public class GridController : MonoBehaviour
 
     void OnValidate()
     {
-        // Don't generate grid directly. Just flag that it needs to be regenerated.
         isDirty = true;
     }
 
@@ -75,7 +90,6 @@ public class GridController : MonoBehaviour
 
     public void GenerateGrid()
     {
-        // Find or create the node holder object
         if (nodeHolder == null)
         {
             GameObject holder = GameObject.Find("NodeHolder");
@@ -87,10 +101,13 @@ public class GridController : MonoBehaviour
             nodeHolder = holder.transform;
         }
 
-        // Use a robust backward loop for cleanup. This is much safer than the previous method.
+        // Cleanup existing nodes
+        // IMPORTANT: Disable them first to immediately remove from Physics/Raycasts
+        // to prevent "Ghost" hits if Destroy is delayed.
         for (int i = nodeHolder.childCount - 1; i >= 0; i--)
         {
             Transform child = nodeHolder.GetChild(i);
+            child.gameObject.SetActive(false); 
             if (Application.isPlaying)
             {
                 Destroy(child.gameObject);
@@ -103,56 +120,81 @@ public class GridController : MonoBehaviour
         nodeObjects.Clear();
         nodeComponents.Clear();
 
-        float cellSize = 1f;
-        float xOffset = 0;
-        float yOffset = 0;
-        if (fitToScreen && Camera.main != null)
+        // Calculate or Restore Grid Dimensions
+        bool shouldRecalculate = true;
+        if (Application.isPlaying && initializedInPlayMode && lockedGridWidth > 0)
         {
-            float totalScreenHeight_World = Camera.main.orthographicSize * 2;
-            float totalScreenWidth_World = totalScreenHeight_World * Camera.main.aspect;
-            float screenWidth_Pixels = Screen.width;
-            float screenHeight_Pixels = Screen.height;
-            float smallerDimension_Pixels = Mathf.Min(screenWidth_Pixels, screenHeight_Pixels);
-            float cutAmount_Pixels = smallerDimension_Pixels / 4f;
-            float pixelsPerWorldUnit = screenHeight_Pixels / totalScreenHeight_World;
-            float cutAmount_World = cutAmount_Pixels / pixelsPerWorldUnit;
-            float availableWidth_World = totalScreenWidth_World - cutAmount_World;
-            float availableHeight_World = totalScreenHeight_World - cutAmount_World;
-            if (availableWidth_World >= availableHeight_World)
+            shouldRecalculate = false;
+        }
+
+        if (shouldRecalculate)
+        {
+            lockedCellSize = 1f;
+            lockedXOffset = 0;
+            lockedYOffset = 0;
+
+            if (fitToScreen && Camera.main != null)
             {
-                gridHeight = minSquares;
-                cellSize = availableHeight_World / gridHeight;
-                gridWidth = Mathf.FloorToInt(availableWidth_World / cellSize);
+                float totalScreenHeight_World = Camera.main.orthographicSize * 2;
+                float totalScreenWidth_World = totalScreenHeight_World * Camera.main.aspect;
+                float screenWidth_Pixels = Screen.width;
+                float screenHeight_Pixels = Screen.height;
+                float smallerDimension_Pixels = Mathf.Min(screenWidth_Pixels, screenHeight_Pixels);
+                float cutAmount_Pixels = smallerDimension_Pixels / 4f;
+                float pixelsPerWorldUnit = screenHeight_Pixels / totalScreenHeight_World;
+                float cutAmount_World = cutAmount_Pixels / pixelsPerWorldUnit;
+                float availableWidth_World = totalScreenWidth_World - cutAmount_World;
+                float availableHeight_World = totalScreenHeight_World - cutAmount_World;
+                
+                if (availableWidth_World >= availableHeight_World)
+                {
+                    gridHeight = minSquares;
+                    lockedCellSize = availableHeight_World / gridHeight;
+                    gridWidth = Mathf.FloorToInt(availableWidth_World / lockedCellSize);
+                }
+                else
+                {
+                    gridWidth = minSquares;
+                    lockedCellSize = availableWidth_World / gridWidth;
+                    gridHeight = Mathf.FloorToInt(availableHeight_World / lockedCellSize);
+                }
+                lockedXOffset = -totalScreenWidth_World / 2f + cutAmount_World;
+                lockedYOffset = -totalScreenHeight_World / 2f + (cutAmount_World * gridUpShiftFactor);
             }
             else
             {
                 gridWidth = minSquares;
-                cellSize = availableWidth_World / gridWidth;
-                gridHeight = Mathf.FloorToInt(availableHeight_World / cellSize);
+                gridHeight = minSquares;
             }
-            xOffset = -totalScreenWidth_World / 2f + cutAmount_World;
-            yOffset = -totalScreenHeight_World / 2f + (cutAmount_World * gridUpShiftFactor);
+
+            lockedGridWidth = gridWidth;
+            lockedGridHeight = gridHeight;
+
+            if (Application.isPlaying)
+            {
+                initializedInPlayMode = true;
+            }
         }
         else
         {
-            gridWidth = minSquares;
-            gridHeight = minSquares;
+            // Restore from locked state
+            gridWidth = lockedGridWidth;
+            gridHeight = lockedGridHeight;
         }
 
         intersectionPoints = new Vector2[gridWidth + 1, gridHeight + 1];
         List<Vector3> vertices = new List<Vector3>();
-        int idCounter = 0;
+
+        // Generate Mesh and Nodes
         for (int y = 0; y <= gridHeight; y++)
         {
             for (int x = 0; x <= gridWidth; x++)
             {
-                // Always calculate position and add a vertex to the mesh data.
-                float xPos = x * cellSize + xOffset;
-                float yPos = y * cellSize + yOffset;
+                float xPos = x * lockedCellSize + lockedXOffset;
+                float yPos = y * lockedCellSize + lockedYOffset;
                 intersectionPoints[x, y] = new Vector2(xPos, yPos);
                 vertices.Add(new Vector3(xPos, yPos, 0));
 
-                // Now, decide if a visible/interactable node GameObject should be created at this vertex.
                 bool cell_bottom_left  = IsCellDestroyed(x - 1, y - 1);
                 bool cell_bottom_right = IsCellDestroyed(x,     y - 1);
                 bool cell_top_left     = IsCellDestroyed(x - 1, y);
@@ -160,23 +202,24 @@ public class GridController : MonoBehaviour
 
                 if (cell_bottom_left && cell_bottom_right && cell_top_left && cell_top_right)
                 {
-                    // This vertex is fully surrounded by destroyed cells, so skip creating a visible node.
                     continue;
                 }
 
-                // If we are not skipping, create the visible node object.
                 if (nodePrefab != null)
                 {
                     GameObject nodeObj = Instantiate(nodePrefab, new Vector3(xPos, yPos, 0), Quaternion.identity, nodeHolder);
                     nodeObj.transform.localScale = Vector3.one * nodeScale;
-                    nodeObj.name = $"Node_{idCounter}({x},{y})";
+                    
+                    // Spatial ID Assignment: Robust against holes/skips
+                    int spatialID = y * (gridWidth + 1) + x;
+                    nodeObj.name = $"Node_{spatialID}({x},{y})";
                     
                     Node nodeComp = nodeObj.GetComponent<Node>();
                     if (nodeComp == null) nodeComp = nodeObj.AddComponent<Node>();
                     
                     nodeComp.x_index = x;
                     nodeComp.y_index = y;
-                    nodeComp.id = idCounter++; // Assign sequential ID only when a node is created
+                    nodeComp.id = spatialID;
                     
                     nodeObjects.Add(nodeObj);
                     nodeComponents.Add(nodeComp);
@@ -184,15 +227,18 @@ public class GridController : MonoBehaviour
             }
         }
 
+        // Generate Edges
         List<int> indices = new List<int>();
         gridEdges.Clear();
+        int rowStride = gridWidth + 1; // Used for vertex index calculation
+
         for (int y = 0; y <= gridHeight; y++)
         {
             for (int x = 0; x < gridWidth; x++)
             {
                 if (!(IsCellDestroyed(x, y - 1) && IsCellDestroyed(x, y)))
                 {
-                    int startVertex = y * (gridWidth + 1) + x;
+                    int startVertex = y * rowStride + x;
                     indices.Add(startVertex);
                     indices.Add(startVertex + 1);
                     gridEdges.Add(new GridEdge(intersectionPoints[x, y], intersectionPoints[x + 1, y]));
@@ -205,9 +251,9 @@ public class GridController : MonoBehaviour
             {
                 if (!(IsCellDestroyed(x - 1, y) && IsCellDestroyed(x, y)))
                 {
-                    int startVertex = y * (gridWidth + 1) + x;
+                    int startVertex = y * rowStride + x;
                     indices.Add(startVertex);
-                    indices.Add(startVertex + (gridWidth + 1));
+                    indices.Add(startVertex + rowStride);
                     gridEdges.Add(new GridEdge(intersectionPoints[x, y], intersectionPoints[x, y + 1]));
                 }
             }
@@ -216,8 +262,7 @@ public class GridController : MonoBehaviour
         gridMesh.vertices = vertices.ToArray();
         gridMesh.SetIndices(indices.ToArray(), MeshTopology.Lines, 0);
 
-        // Tell the GameManager to initialize itself now that the grid is ready
-        if (gameManager != null)
+        if (gameManager != null && autoInitializeGameManager)
         {
             gameManager.InitializeStructure();
         }
@@ -225,8 +270,14 @@ public class GridController : MonoBehaviour
 
     public Vector2[,] GetIntersectionPoints() => intersectionPoints;
     public List<GridEdge> GetGridEdges() => gridEdges;
-    public List<Node> GetNodes() => nodeComponents;
+    public List<Node> GetNodes()
+    {
+        if (nodeComponents != null)
+        {
+            nodeComponents.RemoveAll(n => n == null);
+        }
+        return nodeComponents;
+    }
     public int GetGridWidth() => gridWidth;
     public int GetGridHeight() => gridHeight;
 }
-
