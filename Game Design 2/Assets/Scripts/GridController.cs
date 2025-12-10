@@ -13,6 +13,8 @@ public class GridController : MonoBehaviour
     public bool fitToScreen = true;
     public int destroyWidth = 0;
     public int destroyHeight = 0;
+    public float gridRightShiftFactor = 1.0f;
+    public float gridUpShiftFactor = 1.0f; // New variable for adjusting grid Y position
 
     [Header("Visuals")]
     public GameObject nodePrefab; // Assign a circle sprite prefab with a Collider2D and the Node.cs script
@@ -129,8 +131,8 @@ public class GridController : MonoBehaviour
                 cellSize = availableWidth_World / gridWidth;
                 gridHeight = Mathf.FloorToInt(availableHeight_World / cellSize);
             }
-            xOffset = -totalScreenWidth_World / 2f + cutAmount_World;
-            yOffset = -totalScreenHeight_World / 2f + cutAmount_World;
+            xOffset = -totalScreenWidth_World / 2f + (cutAmount_World * gridRightShiftFactor);
+            yOffset = -totalScreenHeight_World / 2f + (cutAmount_World * gridUpShiftFactor);
         }
         else
         {
