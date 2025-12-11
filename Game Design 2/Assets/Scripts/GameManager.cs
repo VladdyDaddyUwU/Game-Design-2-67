@@ -27,6 +27,7 @@ public class GameManager : MonoBehaviour
     public float youngsModulus = 210e9f;
     public float memberCrossSectionArea = 0.0025f; // 5cm x 5cm
     public float memberYieldStress = 250e6f;
+    public float beamDensity = 7850f; // Density of Steel (kg/m3)
 
     [Header("Simulation Setup")]
     public List<int> anchorNodeIds = new List<int> { 0, 1 }; // Default anchors
@@ -442,7 +443,8 @@ public class GameManager : MonoBehaviour
             loads,
             youngsModulus,
             memberCrossSectionArea,
-            memberYieldStress
+            memberYieldStress,
+            beamDensity
         );
 
         if (result.IsStable)

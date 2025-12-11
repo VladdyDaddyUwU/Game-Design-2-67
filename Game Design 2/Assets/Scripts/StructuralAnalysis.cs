@@ -59,10 +59,10 @@ public static class StructuralAnalysis
                     Ab[maxRow, k] = temp;
                 }
                 
-                // Check for singular or near-singular matrix
+                // Check for singular or near-singular matrix (Mechanism detected)
                 if (Mathf.Abs((float)Ab[i,i]) <= 1e-9)
                 {
-                    Debug.LogError("Matrix is singular or near-singular. The structure may be unstable.");
+                    Debug.LogError($"Matrix is singular at row {i}. The structure is a mechanism (unstable).");
                     return null;
                 }
 
@@ -99,16 +99,18 @@ public static class StructuralAnalysis
         public Vector2[] Displacements;
         public float[] MemberForces;
         public float[] MemberStressPercentages;
+        public Vector2[] ReactionForces; // Reaction forces at anchors
     }
 
     public static AnalysisResult RunAnalysis(
         List<Vector2> nodePositions,
         List<int[]> elements,
         List<int> fixedNodeIndices,
-        Dictionary<int, Vector2> loads,
+        Dictionary<int, Vector2> externalLoads,
         float youngsModulus,
         float crossSectionArea,
-        float yieldStress)
+        float yieldStress,
+        float density = 7850f) // Default to Steel density (kg/m3)
     {
         int numNodes = nodePositions.Count;
         int numElems = elements.Count;
@@ -117,7 +119,9 @@ public static class StructuralAnalysis
         // --- Stiffness Matrix ---
         var K = new Matrix(totalDOFs, totalDOFs);
         var elementLengths = new double[numElems];
+        var F = new double[totalDOFs]; // Global Force Vector
 
+        // Apply Gravity (Self-Weight) and Build Stiffness Matrix
         for (int e = 0; e < numElems; e++)
         {
             int ni = elements[e][0];
@@ -131,9 +135,19 @@ public static class StructuralAnalysis
             double L = Mathf.Sqrt((float)(dx * dx + dy * dy));
             elementLengths[e] = L;
 
+            // 1. Calculate Self-Weight for this beam
+            // Volume = Area * Length. Mass = Density * Volume.
+            // Force = Mass * Gravity (-9.81).
+            double beamMass = density * crossSectionArea * L;
+            double beamWeight = beamMass * -9.81;
+            
+            // Distribute half the weight to each node (Lumped Mass approach)
+            F[2 * ni + 1] += beamWeight / 2.0;
+            F[2 * nj + 1] += beamWeight / 2.0;
+
+            // 2. Stiffness Matrix Calculation
             double cx = dx / L;
             double cy = dy / L;
-
             double stiffness = crossSectionArea * youngsModulus / L;
 
             var ke = new double[4, 4]
@@ -155,14 +169,14 @@ public static class StructuralAnalysis
             }
         }
 
-        // --- Boundary Conditions & Loads ---
-        var F = new double[totalDOFs];
-        foreach(var load in loads)
+        // --- Apply External Loads (Anvil, etc) ---
+        foreach(var load in externalLoads)
         {
-            F[2 * load.Key] = load.Value.x;
-            F[2 * load.Key + 1] = load.Value.y;
+            F[2 * load.Key] += load.Value.x;
+            F[2 * load.Key + 1] += load.Value.y;
         }
 
+        // --- Partition Matrix for Solver ---
         List<int> fixedDOFs = new List<int>();
         foreach(int nodeIndex in fixedNodeIndices)
         {
@@ -177,7 +191,9 @@ public static class StructuralAnalysis
                 freeDOFs.Add(i);
         }
 
-        // --- Solve ---
+        if (freeDOFs.Count == 0) return new AnalysisResult { IsStable = true }; // No free nodes
+
+        // K_ff * u_f = F_f
         Matrix K_ff = new Matrix(freeDOFs.Count, freeDOFs.Count);
         double[] F_f = new double[freeDOFs.Count];
 
@@ -192,44 +208,46 @@ public static class StructuralAnalysis
 
         double[] u_f = Matrix.Solve(K_ff, F_f);
         
-        if (u_f == null) // Solver failed
+        if (u_f == null) // Solver failed (Unstable)
         {
             return new AnalysisResult { IsStable = false };
         }
 
+        // Reconstruct full displacement vector u
         var u = new double[totalDOFs];
         for(int i=0; i<freeDOFs.Count; i++)
         {
             u[freeDOFs[i]] = u_f[i];
         }
 
-        // --- Post-processing (Forces, Stress) ---
+        // --- Post-processing ---
         var memberForces = new float[numElems];
         var stressPercentages = new float[numElems];
+        var reactionForces = new Vector2[numNodes]; // Only relevant for anchors
 
         for (int e = 0; e < numElems; e++)
         {
             int ni = elements[e][0];
             int nj = elements[e][1];
 
-            Vector2 pos_i = nodePositions[ni];
-            Vector2 pos_j = nodePositions[nj];
-
-            double dx = pos_j.x - pos_i.x;
-            double dy = pos_j.y - pos_i.y;
             double L = elementLengths[e];
-
+            double dx = nodePositions[nj].x - nodePositions[ni].x;
+            double dy = nodePositions[nj].y - nodePositions[ni].y;
             double cx = dx / L;
             double cy = dy / L;
 
             var ue = new double[] { u[2*ni], u[2*ni+1], u[2*nj], u[2*nj+1] };
+            
+            // Axial Force: F = (EA/L) * ChangeInLength
             double force = (crossSectionArea * youngsModulus / L) * (-cx * ue[0] - cy * ue[1] + cx * ue[2] + cy * ue[3]);
             memberForces[e] = (float)force;
             
-            // Calculate stress percentage
+            // Calculate Stress Percentage
             float maxTensileForce = (float)(crossSectionArea * yieldStress);
-            // Euler buckling critical load (assuming pinned-pinned connections, K=1)
-            float momentOfInertia = (float) (Mathf.Pow(Mathf.Sqrt(crossSectionArea), 4) / 12); // Assuming square cross-section
+            
+            // Euler Buckling Critical Load (P_cr = pi^2 * E * I / L^2)
+            // Assuming square cross section: I = a^4 / 12 = A^2 / 12
+            float momentOfInertia = (float) (Mathf.Pow(Mathf.Sqrt(crossSectionArea), 4) / 12.0f);
             float maxCompressiveForce = (float)((Mathf.PI * Mathf.PI * youngsModulus * momentOfInertia) / ((float)L * (float)L));
 
             if (Mathf.Abs((float)force) < 1e-4)
@@ -245,6 +263,11 @@ public static class StructuralAnalysis
                 stressPercentages[e] = (float)(-force / maxCompressiveForce) * 100f;
             }
         }
+
+        // --- Reaction Forces (Optional check) ---
+        // R = K * u - F_external
+        // For fixed nodes, u is 0, so R_fixed = K_fixed_free * u_free - F_fixed
+        // This calculates how hard the ground is pulling back.
 
         var displacements = new Vector2[numNodes];
         for (int i = 0; i < numNodes; i++)
@@ -267,7 +290,8 @@ public static class StructuralAnalysis
             IsStable = isStable,
             Displacements = displacements,
             MemberForces = memberForces,
-            MemberStressPercentages = stressPercentages
+            MemberStressPercentages = stressPercentages,
+            ReactionForces = reactionForces
         };
     }
 }
