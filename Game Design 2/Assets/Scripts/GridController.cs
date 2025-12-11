@@ -54,6 +54,15 @@ public class GridController : MonoBehaviour
 
     void Awake()
     {
+        // Safety Check: Detect duplicate instance on GameManager
+        if (gameObject.name == "GameManager")
+        {
+            Debug.LogError("GridController is incorrectly attached to 'GameManager'. It should only be on 'GridManager'. Destroying this duplicate component.");
+            if (Application.isPlaying) Destroy(this);
+            else DestroyImmediate(this);
+            return;
+        }
+
         GetComponent<MeshFilter>().mesh = gridMesh = new Mesh();
         // Force a regeneration on startup to sync state, but respect Play Mode lock if already set
         isDirty = true;
@@ -92,18 +101,24 @@ public class GridController : MonoBehaviour
     {
         if (nodeHolder == null)
         {
-            GameObject holder = GameObject.Find("NodeHolder");
-            if (holder == null)
+            // Robustly find or create NodeHolder as a child
+            Transform existingHolder = transform.Find("NodeHolder");
+            if (existingHolder != null)
             {
-                holder = new GameObject("NodeHolder");
-                holder.transform.SetParent(this.transform);
+                nodeHolder = existingHolder;
             }
-            nodeHolder = holder.transform;
+            else
+            {
+                GameObject holder = new GameObject("NodeHolder");
+                holder.transform.SetParent(this.transform);
+                holder.transform.localPosition = Vector3.zero; // Ensure local position is zero
+                holder.transform.localScale = Vector3.one;
+                nodeHolder = holder.transform;
+            }
         }
 
         // Cleanup existing nodes
         // IMPORTANT: Disable them first to immediately remove from Physics/Raycasts
-        // to prevent "Ghost" hits if Destroy is delayed.
         for (int i = nodeHolder.childCount - 1; i >= 0; i--)
         {
             Transform child = nodeHolder.GetChild(i);
@@ -264,7 +279,7 @@ public class GridController : MonoBehaviour
 
         if (gameManager != null && autoInitializeGameManager)
         {
-            gameManager.InitializeStructure();
+            gameManager.InitializeStructure(this);
         }
     }
 
@@ -272,7 +287,15 @@ public class GridController : MonoBehaviour
     public List<GridEdge> GetGridEdges() => gridEdges;
     public List<Node> GetNodes()
     {
-        if (nodeComponents != null)
+        if (nodeComponents == null || nodeComponents.Count == 0 || nodeComponents.Exists(n => n == null))
+        {
+             // Fallback: Fetch from children if internal list is stale or empty
+             if (nodeHolder != null)
+             {
+                 nodeComponents = new List<Node>(nodeHolder.GetComponentsInChildren<Node>());
+             }
+        }
+        else 
         {
             nodeComponents.RemoveAll(n => n == null);
         }

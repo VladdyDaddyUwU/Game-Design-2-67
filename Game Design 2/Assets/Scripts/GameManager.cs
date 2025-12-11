@@ -12,6 +12,7 @@ public class GameManager : MonoBehaviour
     [Header("Component References")]
     public GridController gridController;
     public StructureBuilder structureBuilder;
+    public Transform structureHolder;
 
     [Header("Structural Properties")]
     public float youngsModulus = 210e9f;
@@ -32,7 +33,20 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        if (gridController == null) gridController = FindObjectOfType<GridController>();
+        if (gridController == null)
+        {
+            GameObject gridManagerObj = GameObject.Find("GridManager");
+            if (gridManagerObj != null)
+            {
+                gridController = gridManagerObj.GetComponent<GridController>();
+            }
+            
+            if (gridController == null)
+            {
+                gridController = FindObjectOfType<GridController>();
+            }
+        }
+
         if (structureBuilder == null) structureBuilder = FindObjectOfType<StructureBuilder>();
         
         // InitializeStructure(); // DO NOT CALL THIS HERE - GridController will call it
@@ -53,13 +67,65 @@ public class GameManager : MonoBehaviour
         }
     }
     
-    public void InitializeStructure()
+    public void InitializeStructure(GridController sourceGridController = null)
     {
+        // cleanup phantom NodeHolder if it exists under GameManager
+        Transform phantomNodeHolder = transform.Find("NodeHolder");
+        if (phantomNodeHolder != null)
+        {
+            Debug.LogWarning("Found phantom 'NodeHolder' under GameManager. Destroying it.");
+            if (Application.isPlaying) Destroy(phantomNodeHolder.gameObject);
+            else DestroyImmediate(phantomNodeHolder.gameObject);
+        }
+
+        // Resolve GridController
+        if (sourceGridController != null)
+        {
+            this.gridController = sourceGridController;
+        }
+        else if (this.gridController == null)
+        {
+             // Try finding the correct one
+             GameObject gridManagerObj = GameObject.Find("GridManager");
+             if (gridManagerObj != null) this.gridController = gridManagerObj.GetComponent<GridController>();
+        }
+
+        if (this.gridController == null)
+        {
+             Debug.LogError("InitializeStructure: GridController is missing!");
+             return;
+        }
+
         RefreshNodes();
         
         // Clear old data before repopulating
         adjacencyList.Clear();
         structuralElements.Clear();
+
+        // Manage Structure Holder (Visuals)
+        if (structureHolder == null)
+        {
+            var existingHolder = transform.Find("StructureHolder");
+            if (existingHolder != null)
+            {
+                structureHolder = existingHolder;
+            }
+            else
+            {
+                var holderObj = new GameObject("StructureHolder");
+                holderObj.transform.SetParent(this.transform);
+                holderObj.transform.localPosition = Vector3.zero;
+                structureHolder = holderObj.transform;
+            }
+        }
+
+        // Clear existing visuals
+        for (int i = structureHolder.childCount - 1; i >= 0; i--)
+        {
+            var child = structureHolder.GetChild(i);
+            if (Application.isPlaying) Destroy(child.gameObject);
+            else DestroyImmediate(child.gameObject);
+        }
 
         // ** CRITICAL: Repopulate the adjacency list and set anchors **
         foreach (var node in allNodes)
@@ -80,22 +146,10 @@ public class GameManager : MonoBehaviour
     {
         var newNodes = gridController.GetNodes();
         
-        // Auto-Repair: If nodes are missing (destroyed), force a regeneration without resetting game state.
         if (newNodes == null || newNodes.Count == 0)
         {
-            Debug.LogWarning("RefreshNodes: Node list empty/destroyed. Attempting Grid Repair...");
-            bool wasAutoInit = gridController.autoInitializeGameManager;
-            gridController.autoInitializeGameManager = false; // Prevent InitializeStructure -> Clear()
-            
-            gridController.GenerateGrid();
-            
-            gridController.autoInitializeGameManager = wasAutoInit; // Restore flag
-            newNodes = gridController.GetNodes();
-        }
-
-        if (newNodes == null || newNodes.Count == 0)
-        {
-            Debug.LogError("RefreshNodes failed: Grid generation did not produce nodes.");
+            Debug.LogWarning("RefreshNodes: Node list is empty. Grid might be uninitialized or cleared.");
+            // Do NOT force regeneration here to avoid loops and state corruption.
             return;
         }
 
@@ -199,7 +253,7 @@ public class GameManager : MonoBehaviour
         Vector2Int p1 = new Vector2Int(startNode.x_index, startNode.y_index);
         Vector2Int p2 = new Vector2Int(endNode.x_index, endNode.y_index);
 
-        Debug.Log($"[OverlapCheck] START. New Beam: {startNode.id}-{endNode.id} ({p1}-{p2}). Total Elements: {structuralElements.Count}. Map Count: {nodeMap.Count}");
+        Debug.Log($"[OverlapCheck] START. New Beam: {startNode.id}-{endNode.id} ({p1}-{p2}). Total Elements: {structuralElements.Count}.");
 
         for (int i = 0; i < structuralElements.Count; i++)
         {
@@ -213,33 +267,18 @@ public class GameManager : MonoBehaviour
                 continue;
             }
 
-            try 
+            Node nodeA = null;
+            Node nodeB = null;
+
+            if (nodeMap.TryGetValue(id1, out nodeA) && nodeMap.TryGetValue(id2, out nodeB))
             {
-                Node nodeA = null;
-                Node nodeB = null;
-
-                bool foundA = nodeMap.TryGetValue(id1, out nodeA);
-                bool foundB = nodeMap.TryGetValue(id2, out nodeB);
-
-                // Check if found but effectively null (destroyed Unity object)
-                if (foundA && nodeA == null) foundA = false;
-                if (foundB && nodeB == null) foundB = false;
-
-                if (!foundA || !foundB)
-                {
-                    Debug.LogWarning($"[OverlapCheck] Index {i}: Nodes {id1} or {id2} missing or destroyed. Refreshing...");
-                    RefreshNodes();
-                    nodeMap.TryGetValue(id1, out nodeA);
-                    nodeMap.TryGetValue(id2, out nodeB);
-                }
-
-                if (nodeA == null || nodeB == null) 
-                {
-                    Debug.LogError($"[OverlapCheck] Index {i}: Lookup Failed AFTER refresh! id1={id1}, id2={id2}. " +
-                                   $"NodeA_Null={nodeA==null}, NodeB_Null={nodeB==null}. " +
-                                   $"MapContains(id1)={nodeMap.ContainsKey(id1)}, MapContains(id2)={nodeMap.ContainsKey(id2)}");
-                    continue;
-                }
+                 // Check validity
+                 if (nodeA == null || nodeB == null)
+                 {
+                     // This means the node object was destroyed but the ID is still in our map/list.
+                     // This indicates a state desync, but we should not crash or recurse.
+                     continue;
+                 }
 
                 Vector2Int pA = new Vector2Int(nodeA.x_index, nodeA.y_index);
                 Vector2Int pB = new Vector2Int(nodeB.x_index, nodeB.y_index);
@@ -250,13 +289,8 @@ public class GameManager : MonoBehaviour
                     return true;
                 }
             }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[OverlapCheck] Index {i}: EXCEPTION: {ex.Message}\n{ex.StackTrace}");
-            }
         }
         
-        Debug.Log($"[OverlapCheck] END. No overlaps found.");
         return false;
     }
 

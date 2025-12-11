@@ -119,6 +119,13 @@ public class StructureBuilder : MonoBehaviour
         if (beamPrefab != null)
         {
             beamObj = Instantiate(beamPrefab, Vector3.zero, Quaternion.identity);
+            
+            // Parent to the manager's holder
+            if (gameManager.structureHolder != null)
+            {
+                beamObj.transform.SetParent(gameManager.structureHolder);
+            }
+
             LineRenderer beamLine = beamObj.GetComponent<LineRenderer>();
             beamLine.startWidth = beamWidth;
             beamLine.endWidth = beamWidth;
