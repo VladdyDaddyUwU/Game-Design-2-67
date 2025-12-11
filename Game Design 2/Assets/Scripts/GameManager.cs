@@ -13,6 +13,15 @@ public class GameManager : MonoBehaviour
     public GridController gridController;
     public StructureBuilder structureBuilder;
     public Transform structureHolder;
+    public Transform elementsHolder;
+
+    [Header("Game Elements")]
+    public GameObject humanPrefab;
+    public GameObject anvilPrefab;
+    public float anvilHangingDistance = 1.5f; // How far below the node the anvil hangs
+    private GameObject humanInstance;
+    private GameObject anvilInstance;
+    private LineRenderer anvilRope;
 
     [Header("Structural Properties")]
     public float youngsModulus = 210e9f;
@@ -21,7 +30,7 @@ public class GameManager : MonoBehaviour
 
     [Header("Simulation Setup")]
     public List<int> anchorNodeIds = new List<int> { 0, 1 }; // Default anchors
-    public int loadNodeId = 6;
+    public int loadNodeId; // Calculated dynamically
     public float loadMass = 40000f;
     public Vector2 gravity = new Vector2(0, -9.81f);
 
@@ -30,6 +39,8 @@ public class GameManager : MonoBehaviour
     private List<Vector2> nodePositions;
     private List<int[]> structuralElements = new List<int[]>();
     private Dictionary<int, List<int>> adjacencyList = new Dictionary<int, List<int>>();
+    
+    private bool isCollapsing = false;
 
     void Start()
     {
@@ -63,7 +74,18 @@ public class GameManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.B))
         {
             currentMode = GameMode.Build;
-            // Here you might want to reset the visuals to the pre-simulation state
+            ResetSimulation();
+        }
+        
+        if (isCollapsing)
+        {
+            UpdateBeamVisuals();
+            // Also update rope
+            if (anvilRope != null && anvilInstance != null && nodeMap.ContainsKey(loadNodeId))
+            {
+                anvilRope.SetPosition(0, nodeMap[loadNodeId].transform.position);
+                anvilRope.SetPosition(1, anvilInstance.transform.position);
+            }
         }
     }
     
@@ -118,6 +140,23 @@ public class GameManager : MonoBehaviour
                 structureHolder = holderObj.transform;
             }
         }
+        
+        // Manage Elements Holder (Game Elements)
+        if (elementsHolder == null)
+        {
+            var existingHolder = transform.Find("ElementsHolder");
+            if (existingHolder != null)
+            {
+                elementsHolder = existingHolder;
+            }
+            else
+            {
+                var holderObj = new GameObject("ElementsHolder");
+                holderObj.transform.SetParent(this.transform);
+                holderObj.transform.localPosition = Vector3.zero;
+                elementsHolder = holderObj.transform;
+            }
+        }
 
         // Clear existing visuals
         for (int i = structureHolder.childCount - 1; i >= 0; i--)
@@ -140,6 +179,77 @@ public class GameManager : MonoBehaviour
                 node.isAnchor = false;
             }
         }
+
+        SpawnGameElements();
+    }
+
+    public void SpawnGameElements()
+    {
+        // 1. Cleanup old elements - Destroy all children of elementsHolder
+        if (elementsHolder != null)
+        {
+            for (int i = elementsHolder.childCount - 1; i >= 0; i--)
+            {
+                 var child = elementsHolder.GetChild(i);
+                 DestroyImmediate(child.gameObject);
+            }
+        }
+
+        // 2. Calculate Positions
+        int targetNodeID = gridController.GetTargetNodeID();
+        Vector2 targetNodePos = gridController.GetTargetNodePosition();
+        
+        // Human is at the bottom of the same column
+        int targetX = gridController.GetGridWidth() - (gridController.destroyWidth / 2);
+        Vector2 humanPos = gridController.GetNodePosition(targetX, 0); 
+        humanPos += Vector2.up * 0.5f;
+
+        Vector2 anvilPos = targetNodePos + (Vector2.down * anvilHangingDistance);
+
+        // 3. Spawn Human
+        if (humanPrefab != null)
+        {
+            humanInstance = Instantiate(humanPrefab, humanPos, Quaternion.identity);
+        }
+        else
+        {
+            humanInstance = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            humanInstance.transform.position = humanPos;
+            humanInstance.transform.localScale = Vector3.one * 0.5f;
+            humanInstance.GetComponent<Renderer>().material.color = Color.green;
+            humanInstance.name = "Human (Placeholder)";
+        }
+        if (elementsHolder != null) humanInstance.transform.SetParent(elementsHolder);
+
+        // 4. Spawn Anvil
+        if (anvilPrefab != null)
+        {
+            anvilInstance = Instantiate(anvilPrefab, anvilPos, Quaternion.identity);
+        }
+        else
+        {
+            anvilInstance = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            anvilInstance.transform.position = anvilPos;
+            anvilInstance.transform.localScale = Vector3.one * 0.8f;
+            anvilInstance.GetComponent<Renderer>().material.color = Color.black;
+            anvilInstance.name = "Anvil (Placeholder)";
+        }
+        if (elementsHolder != null) anvilInstance.transform.SetParent(elementsHolder);
+        
+        // 5. Draw Rope
+        GameObject ropeObj = new GameObject("AnvilRope");
+        if (elementsHolder != null) ropeObj.transform.SetParent(elementsHolder);
+        
+        anvilRope = ropeObj.AddComponent<LineRenderer>();
+        anvilRope.startWidth = 0.05f;
+        anvilRope.endWidth = 0.05f;
+        anvilRope.positionCount = 2;
+        anvilRope.material = new Material(Shader.Find("Sprites/Default"));
+        anvilRope.startColor = Color.gray;
+        anvilRope.endColor = Color.gray;
+        
+        anvilRope.SetPosition(0, targetNodePos);
+        anvilRope.SetPosition(1, anvilPos);
     }
 
     public void RefreshNodes()
@@ -149,7 +259,6 @@ public class GameManager : MonoBehaviour
         if (newNodes == null || newNodes.Count == 0)
         {
             Debug.LogWarning("RefreshNodes: Node list is empty. Grid might be uninitialized or cleared.");
-            // Do NOT force regeneration here to avoid loops and state corruption.
             return;
         }
 
@@ -183,18 +292,9 @@ public class GameManager : MonoBehaviour
 
     public void RemoveElement(int nodeId1, int nodeId2)
     {
-        // Remove from structuralElements
         structuralElements.RemoveAll(e => (e[0] == nodeId1 && e[1] == nodeId2) || (e[0] == nodeId2 && e[1] == nodeId1));
-
-        // Remove from adjacencyList
-        if (adjacencyList.ContainsKey(nodeId1))
-        {
-            adjacencyList[nodeId1].Remove(nodeId2);
-        }
-        if (adjacencyList.ContainsKey(nodeId2))
-        {
-            adjacencyList[nodeId2].Remove(nodeId1);
-        }
+        if (adjacencyList.ContainsKey(nodeId1)) adjacencyList[nodeId1].Remove(nodeId2);
+        if (adjacencyList.ContainsKey(nodeId2)) adjacencyList[nodeId2].Remove(nodeId1);
     }
 
     public bool DoesElementExist(int nodeId1, int nodeId2)
@@ -216,10 +316,7 @@ public class GameManager : MonoBehaviour
         {
             int currentNodeId = queue.Dequeue();
 
-            if (anchorNodeIds.Contains(currentNodeId))
-            {
-                return true;
-            }
+            if (anchorNodeIds.Contains(currentNodeId)) return true;
 
             if (adjacencyList.ContainsKey(currentNodeId))
             {
@@ -238,22 +335,11 @@ public class GameManager : MonoBehaviour
 
     public bool IsNewElementOverlappingExisting(Node startNode, Node endNode)
     {
-        if (structuralElements == null) 
-        {
-            Debug.LogError("IsNewElementOverlappingExisting: structuralElements is null!");
-            return false;
-        }
-
-        // Ensure map is populated
-        if (nodeMap == null || nodeMap.Count == 0)
-        {
-            RefreshNodes();
-        }
+        if (structuralElements == null) return false;
+        if (nodeMap == null || nodeMap.Count == 0) RefreshNodes();
 
         Vector2Int p1 = new Vector2Int(startNode.x_index, startNode.y_index);
         Vector2Int p2 = new Vector2Int(endNode.x_index, endNode.y_index);
-
-        Debug.Log($"[OverlapCheck] START. New Beam: {startNode.id}-{endNode.id} ({p1}-{p2}). Total Elements: {structuralElements.Count}.");
 
         for (int i = 0; i < structuralElements.Count; i++)
         {
@@ -261,74 +347,45 @@ public class GameManager : MonoBehaviour
             int id1 = element[0];
             int id2 = element[1];
 
-            // Skip the element if it is the one we just added (the self-check)
-            if ((id1 == startNode.id && id2 == endNode.id) || (id1 == endNode.id && id2 == startNode.id))
-            {
-                continue;
-            }
+            if ((id1 == startNode.id && id2 == endNode.id) || (id1 == endNode.id && id2 == startNode.id)) continue;
 
             Node nodeA = null;
             Node nodeB = null;
 
             if (nodeMap.TryGetValue(id1, out nodeA) && nodeMap.TryGetValue(id2, out nodeB))
             {
-                 // Check validity
-                 if (nodeA == null || nodeB == null)
-                 {
-                     // This means the node object was destroyed but the ID is still in our map/list.
-                     // This indicates a state desync, but we should not crash or recurse.
-                     continue;
-                 }
+                 if (nodeA == null || nodeB == null) continue;
 
                 Vector2Int pA = new Vector2Int(nodeA.x_index, nodeA.y_index);
                 Vector2Int pB = new Vector2Int(nodeB.x_index, nodeB.y_index);
 
-                if (DoSegmentsOverlap(p1, p2, pA, pB))
-                {
-                    Debug.Log($"[OverlapCheck] OVERLAP DETECTED at Index {i}!");
-                    return true;
-                }
+                if (DoSegmentsOverlap(p1, p2, pA, pB)) return true;
             }
         }
-        
         return false;
     }
 
     public bool IsElementContained(Node startNode, Node endNode)
     {
-         // Same logic using map
          return IsNewElementOverlappingExisting(startNode, endNode);
     }
 
     private bool DoSegmentsOverlap(Vector2Int p1, Vector2Int p2, Vector2Int a, Vector2Int b)
     {
-        // 1. Check if they are collinear lines.
         long ab_dx = b.x - a.x;
         long ab_dy = b.y - a.y;
-        
         long p1p2_dx = p2.x - p1.x;
         long p1p2_dy = p2.y - p1.y;
-
         long ap1_dx = p1.x - a.x;
         long ap1_dy = p1.y - a.y;
 
-        // Check 1: Are lines AB and P1P2 parallel? Cross product of direction vectors must be 0.
         long parallelCheck = (ab_dx * p1p2_dy) - (ab_dy * p1p2_dx);
-        if (parallelCheck != 0) 
-        {
-            return false;
-        }
+        if (parallelCheck != 0) return false;
 
-        // Check 2: Are lines collinear? Cross product of AB and AP1 must be 0.
         long collinearCheck = (ab_dx * ap1_dy) - (ab_dy * ap1_dx);
-        if (collinearCheck != 0) 
-        {
-            return false;
-        }
+        if (collinearCheck != 0) return false;
 
-        // 3. If collinear, check for 1D interval overlap.
         bool isVertical = (ab_dx == 0);
-
         int min1, max1, min2, max2;
 
         if (!isVertical)
@@ -346,14 +403,31 @@ public class GameManager : MonoBehaviour
             max2 = Mathf.Max(a.y, b.y);
         }
 
-        bool overlaps = (max1 > min2) && (max2 > min1);
-        return overlaps;
+        return (max1 > min2) && (max2 > min1);
     }
 
     public void StartSimulation()
     {
         currentMode = GameMode.Simulate;
         Debug.Log("Starting simulation...");
+
+        // Hide unconnected nodes
+        foreach (var node in allNodes)
+        {
+            bool isConnected = false;
+            if (adjacencyList.ContainsKey(node.id) && adjacencyList[node.id].Count > 0)
+            {
+                isConnected = true;
+            }
+            
+            // Keep anchors visible, keep connected nodes visible. Hide the rest.
+            if (!node.isAnchor && !isConnected)
+            {
+                node.gameObject.SetActive(false);
+            }
+        }
+
+        loadNodeId = gridController.GetTargetNodeID();
 
         var fixedNodes = anchorNodeIds;
         var loads = new Dictionary<int, Vector2>
@@ -375,16 +449,40 @@ public class GameManager : MonoBehaviour
         {
             Debug.Log("Structure is STABLE.");
             ApplyDeformation(result.Displacements);
+            
+            bool failed = false;
+            foreach (var stress in result.MemberStressPercentages)
+            {
+                if (stress >= 100f)
+                {
+                    failed = true;
+                    break;
+                }
+            }
+            
+            if (failed)
+            {
+                Debug.LogError("Structure FAILED: Materials yielded/buckled.");
+                CollapseSequence();
+            }
+            else
+            {
+                Debug.Log("SUCCESS: Human Saved!");
+                if (humanInstance != null) 
+                    humanInstance.GetComponent<Renderer>().material.color = Color.blue; 
+            }
         }
         else
         {
-            Debug.LogError("Structure is UNSTABLE and failed!");
+            Debug.LogError("Structure is UNSTABLE (Mechanism detected)!");
+            CollapseSequence();
         }
 
-        // Visualize results (e.g., color members by stress)
-        // This part would require access to the beam game objects.
-        Debug.Log("Member forces: " + string.Join(", ", result.MemberForces));
-        Debug.Log("Stress percentages: " + string.Join(", ", result.MemberStressPercentages));
+        if (result.MemberForces != null)
+            Debug.Log("Member forces: " + string.Join(", ", result.MemberForces));
+            
+        if (result.MemberStressPercentages != null)
+            Debug.Log("Stress percentages: " + string.Join(", ", result.MemberStressPercentages));
     }
 
     void ApplyDeformation(Vector2[] displacements, float scale = 1.0f)
@@ -396,8 +494,180 @@ public class GameManager : MonoBehaviour
             Vector3 newPos = nodePositions[i] + displacements[i] * scale;
             allNodes[i].transform.position = newPos;
         }
+        
+        if (anvilRope != null)
+        {
+            if (nodeMap.ContainsKey(loadNodeId))
+            {
+                anvilRope.SetPosition(0, nodeMap[loadNodeId].transform.position);
+            }
+        }
+        UpdateBeamVisuals();
+    }
+    
+    void UpdateBeamVisuals()
+    {
+        if (structureHolder == null) return;
+        
+        foreach (Transform child in structureHolder)
+        {
+            LineRenderer lr = child.GetComponent<LineRenderer>();
+            if (lr != null)
+            {
+                try 
+                {
+                     string name = child.name;
+                     string[] parts = name.Split('-'); 
+                     if (parts.Length == 2)
+                     {
+                         var p1 = ParseNodeCoords(parts[0].Replace("Beam", ""));
+                         var p2 = ParseNodeCoords(parts[1]);
+                         
+                         Node n1 = allNodes.FirstOrDefault(n => n.x_index == p1.x && n.y_index == p1.y);
+                         Node n2 = allNodes.FirstOrDefault(n => n.x_index == p2.x && n.y_index == p2.y);
+                         
+                         if (n1 != null && n2 != null)
+                         {
+                             lr.SetPosition(0, n1.transform.position);
+                             lr.SetPosition(1, n2.transform.position);
+                         }
+                     }
+                }
+                catch {}
+            }
+        }
+    }
+    
+    Vector2Int ParseNodeCoords(string s)
+    {
+        s = s.Trim('(', ')');
+        var nums = s.Split(',');
+        return new Vector2Int(int.Parse(nums[0]), int.Parse(nums[1]));
+    }
 
-        // You would also need to update the LineRenderers for the beams here
-        // This requires a more robust way to track beam game objects.
+    void CollapseSequence()
+    {
+        if (humanInstance != null) 
+            humanInstance.GetComponent<Renderer>().material.color = Color.red; 
+            
+        Debug.Log("GAME OVER: Structure Collapsing!");
+        isCollapsing = true;
+        EnablePhysicsCollapse();
+    }
+
+    void EnablePhysicsCollapse()
+    {
+        // 1. Convert Nodes to Rigidbodies
+        foreach (var node in allNodes)
+        {
+            Rigidbody2D rb = node.gameObject.GetComponent<Rigidbody2D>();
+            if (rb == null) rb = node.gameObject.AddComponent<Rigidbody2D>();
+            
+            if (node.isAnchor)
+            {
+                rb.bodyType = RigidbodyType2D.Static;
+            }
+            else
+            {
+                rb.bodyType = RigidbodyType2D.Dynamic;
+                rb.mass = 10f; // Give nodes some weight
+                rb.linearDamping = 0.5f;
+            }
+            
+            // Add collider if missing
+            if (node.gameObject.GetComponent<CircleCollider2D>() == null)
+            {
+                node.gameObject.AddComponent<CircleCollider2D>().radius = 0.2f;
+            }
+        }
+
+        // 2. Convert Beams to Joints
+        foreach (var element in structuralElements)
+        {
+            int id1 = element[0];
+            int id2 = element[1];
+
+            if (nodeMap.TryGetValue(id1, out Node n1) && nodeMap.TryGetValue(id2, out Node n2))
+            {
+                DistanceJoint2D joint = n1.gameObject.AddComponent<DistanceJoint2D>();
+                joint.connectedBody = n2.GetComponent<Rigidbody2D>();
+                joint.autoConfigureDistance = false;
+                joint.distance = Vector2.Distance(n1.transform.position, n2.transform.position);
+                // Make it slightly elastic but mostly rigid
+                joint.maxDistanceOnly = false; 
+                joint.enableCollision = true;
+            }
+        }
+
+        // 3. Connect Anvil
+        if (anvilInstance != null)
+        {
+            // Remove 3D components first to avoid conflicts
+            // MUST use DestroyImmediate because Destroy() is delayed to end of frame,
+            // causing the AddComponent<Rigidbody2D> below to fail due to conflict.
+            var rb3d = anvilInstance.GetComponent<Rigidbody>();
+            if (rb3d != null) DestroyImmediate(rb3d);
+            var col3d = anvilInstance.GetComponent<Collider>();
+            if (col3d != null) DestroyImmediate(col3d);
+
+            Rigidbody2D rb2d = anvilInstance.GetComponent<Rigidbody2D>();
+            if (rb2d == null) rb2d = anvilInstance.AddComponent<Rigidbody2D>();
+            rb2d.mass = 500f; // Heavy!
+            
+            // Add 2D collider so it hits the human
+            if (anvilInstance.GetComponent<BoxCollider2D>() == null)
+                 anvilInstance.AddComponent<BoxCollider2D>();
+            
+            if (nodeMap.TryGetValue(loadNodeId, out Node targetNode))
+            {
+                DistanceJoint2D rope = targetNode.gameObject.AddComponent<DistanceJoint2D>();
+                rope.connectedBody = rb2d;
+                rope.autoConfigureDistance = false;
+                rope.distance = anvilHangingDistance;
+                rope.maxDistanceOnly = true; // Rope behavior (can fold, can't stretch)
+            }
+        }
+    }
+    
+    void ResetSimulation()
+    {
+         isCollapsing = false;
+
+         if (nodePositions != null && allNodes != null)
+         {
+             for (int i = 0; i < allNodes.Count; i++)
+             {
+                 Node n = allNodes[i];
+                 n.gameObject.SetActive(true); // Restore visibility
+                 
+                 // Remove physics
+                 var joints = n.GetComponents<DistanceJoint2D>();
+                 foreach(var j in joints) Destroy(j);
+                 
+                 var rb = n.GetComponent<Rigidbody2D>();
+                 if (rb != null) Destroy(rb);
+                 
+                 var col = n.GetComponent<CircleCollider2D>();
+                 if (col != null) Destroy(col);
+
+                 // Restore Position
+                 if (i < nodePositions.Count)
+                    n.transform.position = nodePositions[i];
+             }
+         }
+         
+         // Fix Anvil
+         if (anvilInstance != null)
+         {
+             var rb2d = anvilInstance.GetComponent<Rigidbody2D>();
+             if (rb2d != null) Destroy(rb2d);
+             // We used 3D primitive which has 3D collider. It's fine for visuals but physics mixed is bad.
+             // For reset, we just respawn.
+         }
+
+         // Force respawn to clean slate
+         SpawnGameElements();
+         
+         UpdateBeamVisuals();
     }
 }

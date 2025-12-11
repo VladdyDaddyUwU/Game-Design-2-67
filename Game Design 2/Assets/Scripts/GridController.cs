@@ -303,4 +303,54 @@ public class GridController : MonoBehaviour
     }
     public int GetGridWidth() => gridWidth;
     public int GetGridHeight() => gridHeight;
+
+    public int GetTargetNodeID()
+    {
+        // Logic: Middle of destroy zone width, immediately above destroy zone height
+        // Since destroy zone is at the far right:
+        // x start = gridWidth - destroyWidth
+        // x center = x start + (destroyWidth / 2)
+        // OR simply: gridWidth - (destroyWidth / 2) - which might be slightly off due to integer division but is consistent.
+        
+        // Let's stick to the user's description: "2nd last node from the right" if width is 2.
+        // If width=2, gridWidth=10. x_start=8. Indices: 8, 9 are destroyed.
+        // We want x=9? Or x=8?
+        // User: "if destroy width is 2, then the node is the 2nd last node from the right"
+        // 2nd last node index is (gridWidth - 1). Last is gridWidth.
+        // Wait, indices go from 0 to gridWidth.
+        // If width=2, destroyed are [gridWidth-1, gridWidth-2] relative to END?
+        // IsCellDestroyed check: x >= gridWidth - destroyWidth
+        // Example: Width=10. Destroy=2.
+        // x >= 8. (8, 9).
+        // 2nd last node from right usually means index 9 (if 10 is max).
+        // "middle of that zone". If zone is 8,9. Middle is 8.5. Integer 8 or 9.
+        // Let's use: gridWidth - (destroyWidth / 2) - 1.
+        // If width=2: 10 - 1 - 1 = 8.
+        // If width=3: 10 - 1 - 1 = 8.
+        
+        // Let's use the exact center logic:
+        int targetX = gridWidth - (destroyWidth / 2);
+        // Ensure it stays within bounds
+        if (targetX > gridWidth) targetX = gridWidth;
+        
+        int targetY = destroyHeight; 
+        
+        // Calculate ID
+        int rowStride = gridWidth + 1;
+        return targetY * rowStride + targetX;
+    }
+
+    public Vector2 GetTargetNodePosition()
+    {
+        int targetX = gridWidth - (destroyWidth / 2);
+        int targetY = destroyHeight;
+        return GetNodePosition(targetX, targetY);
+    }
+
+    public Vector2 GetNodePosition(int x, int y)
+    {
+        float xPos = x * lockedCellSize + lockedXOffset;
+        float yPos = y * lockedCellSize + lockedYOffset;
+        return new Vector2(xPos, yPos);
+    }
 }
