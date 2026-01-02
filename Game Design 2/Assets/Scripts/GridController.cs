@@ -32,7 +32,7 @@ public class GridController : MonoBehaviour
     private bool isDirty = true;
 
     // Locked grid parameters to ensure stability across repairs/reloads
-    [SerializeField, HideInInspector] private float lockedCellSize = 1f;
+    public float lockedCellSize = 1f;
     [SerializeField, HideInInspector] private float lockedXOffset = 0f;
     [SerializeField, HideInInspector] private float lockedYOffset = 0f;
     [SerializeField, HideInInspector] private int lockedGridWidth = 0;

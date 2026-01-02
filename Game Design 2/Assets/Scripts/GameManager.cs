@@ -495,9 +495,14 @@ public class GameManager : MonoBehaviour
             analysisLoads.Add(idToIndex[loadNodeId], gravity * loadMass);
         }
 
+        // --- NORMALIZE COORDINATES ---
+        // We divide by lockedCellSize so the backend math always sees 1 grid cell as 1.0 meters.
+        float normalizationFactor = gridController.lockedCellSize;
+        List<Vector2> normalizedPositions = activePositions.Select(p => p / normalizationFactor).ToList();
+
         // --- RUN ANALYSIS ---
         StructuralAnalysis.AnalysisResult result = StructuralAnalysis.RunAnalysis(
-            activePositions,
+            normalizedPositions,
             analysisElements,
             analysisFixedNodes,
             analysisLoads,
@@ -510,8 +515,9 @@ public class GameManager : MonoBehaviour
         if (result.IsStable)
         {
             Debug.Log("Structure is STABLE.");
-            // Apply deformation ONLY to the nodes involved in analysis
-            ApplyDeformation(activeNodesList, activePositions, result.Displacements);
+            // Apply deformation: The displacement is in "normalized meters", 
+            // so we scale it back up to "Unity Units" using the normalizationFactor.
+            ApplyDeformation(activeNodesList, activePositions, result.Displacements, normalizationFactor);
             
             bool failed = false;
             foreach (var stress in result.MemberStressPercentages)
@@ -652,13 +658,16 @@ public class GameManager : MonoBehaviour
 
             if (nodeMap.TryGetValue(id1, out Node n1) && nodeMap.TryGetValue(id2, out Node n2))
             {
-                DistanceJoint2D joint = n1.gameObject.AddComponent<DistanceJoint2D>();
+                // Use FixedJoint2D to simulate a welded beam (rigid relative position AND rotation)
+                FixedJoint2D joint = n1.gameObject.AddComponent<FixedJoint2D>();
                 joint.connectedBody = n2.GetComponent<Rigidbody2D>();
-                joint.autoConfigureDistance = false;
-                joint.distance = Vector2.Distance(n1.transform.position, n2.transform.position);
-                // Make it slightly elastic but mostly rigid
-                joint.maxDistanceOnly = false; 
-                joint.enableCollision = true;
+                joint.autoConfigureConnectedAnchor = true; // Lock current relative pos/rot
+
+                // Add "Softness" to simulate bending metal and prevent physics explosions
+                joint.dampingRatio = 0.8f; 
+                joint.frequency = 10f; // Stiff but allows some flex
+                
+                joint.enableCollision = false;
             }
         }
 
@@ -704,7 +713,7 @@ public class GameManager : MonoBehaviour
                  n.gameObject.SetActive(true); // Restore visibility
                  
                  // Remove physics
-                 var joints = n.GetComponents<DistanceJoint2D>();
+                 var joints = n.GetComponents<Joint2D>();
                  foreach(var j in joints) Destroy(j);
                  
                  var rb = n.GetComponent<Rigidbody2D>();
