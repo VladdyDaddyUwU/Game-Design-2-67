@@ -77,6 +77,12 @@ public class GameManager : MonoBehaviour
             currentMode = GameMode.Build;
             ResetSimulation();
         }
+
+        // Undo Functionality (Z)
+        if (currentMode == GameMode.Build && Input.GetKeyDown(KeyCode.Z))
+        {
+            UndoLastAction();
+        }
         
         if (isCollapsing)
         {
@@ -88,6 +94,47 @@ public class GameManager : MonoBehaviour
                 anvilRope.SetPosition(1, anvilInstance.transform.position);
             }
         }
+    }
+
+    public void UndoLastAction()
+    {
+        if (structuralElements.Count == 0) return;
+
+        // 1. Get the last element added
+        int[] lastElement = structuralElements[structuralElements.Count - 1];
+        int id1 = lastElement[0];
+        int id2 = lastElement[1];
+
+        // 2. Remove from Data (Logic similar to RemoveElement but specific index)
+        structuralElements.RemoveAt(structuralElements.Count - 1);
+        
+        if (adjacencyList.ContainsKey(id1)) adjacencyList[id1].Remove(id2);
+        if (adjacencyList.ContainsKey(id2)) adjacencyList[id2].Remove(id1);
+
+        // 3. Remove Visuals
+        if (structureHolder != null && nodeMap.ContainsKey(id1) && nodeMap.ContainsKey(id2))
+        {
+            Node n1 = nodeMap[id1];
+            Node n2 = nodeMap[id2];
+            
+            // Check both naming possibilities
+            string name1 = $"Beam({n1.x_index},{n1.y_index})-({n2.x_index},{n2.y_index})";
+            string name2 = $"Beam({n2.x_index},{n2.y_index})-({n1.x_index},{n1.y_index})";
+            
+            Transform childToRemove = structureHolder.Find(name1);
+            if (childToRemove == null) childToRemove = structureHolder.Find(name2);
+            
+            if (childToRemove != null)
+            {
+                Destroy(childToRemove.gameObject);
+            }
+            else
+            {
+                Debug.LogWarning($"Undo: Could not find visual for beam {name1} or {name2}");
+            }
+        }
+        
+        Debug.Log("Undo: Removed last beam.");
     }
     
     public void InitializeStructure(GridController sourceGridController = null)
