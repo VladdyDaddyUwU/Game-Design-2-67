@@ -430,17 +430,77 @@ public class GameManager : MonoBehaviour
 
         loadNodeId = gridController.GetTargetNodeID();
 
-        var fixedNodes = anchorNodeIds;
-        var loads = new Dictionary<int, Vector2>
+        // --- PREPARE ANALYSIS DATA ---
+        // We must map Node IDs to a compact index range (0..N) containing ONLY active nodes.
+        // Unconnected nodes in the grid cause Singularity (Matrix Error) if included.
+        
+        HashSet<int> activeNodeIDs = new HashSet<int>();
+        
+        // 1. Include nodes connected by beams
+        foreach (var el in structuralElements)
         {
-            { loadNodeId, gravity * loadMass }
-        };
+            activeNodeIDs.Add(el[0]);
+            activeNodeIDs.Add(el[1]);
+        }
+        
+        // 2. Include Anchors (must be part of system)
+        foreach (var anchorID in anchorNodeIds)
+        {
+            // Only add if it exists
+            if (nodeMap.ContainsKey(anchorID)) activeNodeIDs.Add(anchorID);
+        }
+        
+        // 3. Include Load Node
+        if (nodeMap.ContainsKey(loadNodeId)) activeNodeIDs.Add(loadNodeId);
 
+        // Build Mapping
+        List<Vector2> activePositions = new List<Vector2>();
+        Dictionary<int, int> idToIndex = new Dictionary<int, int>();
+        List<Node> activeNodesList = new List<Node>(); 
+        
+        int indexCounter = 0;
+        foreach (int id in activeNodeIDs)
+        {
+            if (nodeMap.TryGetValue(id, out Node node))
+            {
+                activePositions.Add(node.transform.position);
+                idToIndex[id] = indexCounter;
+                activeNodesList.Add(node);
+                indexCounter++;
+            }
+        }
+        
+        // Remap Elements
+        List<int[]> analysisElements = new List<int[]>();
+        foreach (var el in structuralElements)
+        {
+            if (idToIndex.ContainsKey(el[0]) && idToIndex.ContainsKey(el[1]))
+            {
+                analysisElements.Add(new int[] { idToIndex[el[0]], idToIndex[el[1]] });
+            }
+        }
+
+        // Remap Anchors
+        List<int> analysisFixedNodes = new List<int>();
+        foreach (var anchorID in anchorNodeIds)
+        {
+            if (idToIndex.ContainsKey(anchorID))
+                analysisFixedNodes.Add(idToIndex[anchorID]);
+        }
+
+        // Remap Loads
+        var analysisLoads = new Dictionary<int, Vector2>();
+        if (idToIndex.ContainsKey(loadNodeId))
+        {
+            analysisLoads.Add(idToIndex[loadNodeId], gravity * loadMass);
+        }
+
+        // --- RUN ANALYSIS ---
         StructuralAnalysis.AnalysisResult result = StructuralAnalysis.RunAnalysis(
-            nodePositions,
-            structuralElements,
-            fixedNodes,
-            loads,
+            activePositions,
+            analysisElements,
+            analysisFixedNodes,
+            analysisLoads,
             youngsModulus,
             memberCrossSectionArea,
             memberYieldStress,
@@ -450,7 +510,8 @@ public class GameManager : MonoBehaviour
         if (result.IsStable)
         {
             Debug.Log("Structure is STABLE.");
-            ApplyDeformation(result.Displacements);
+            // Apply deformation ONLY to the nodes involved in analysis
+            ApplyDeformation(activeNodesList, activePositions, result.Displacements);
             
             bool failed = false;
             foreach (var stress in result.MemberStressPercentages)
@@ -487,14 +548,14 @@ public class GameManager : MonoBehaviour
             Debug.Log("Stress percentages: " + string.Join(", ", result.MemberStressPercentages));
     }
 
-    void ApplyDeformation(Vector2[] displacements, float scale = 1.0f)
+    void ApplyDeformation(List<Node> nodes, List<Vector2> originalPositions, Vector2[] displacements, float scale = 1.0f)
     {
-        if (displacements == null || displacements.Length != allNodes.Count) return;
+        if (displacements == null || nodes.Count != displacements.Length) return;
 
-        for (int i = 0; i < allNodes.Count; i++)
+        for (int i = 0; i < nodes.Count; i++)
         {
-            Vector3 newPos = nodePositions[i] + displacements[i] * scale;
-            allNodes[i].transform.position = newPos;
+            Vector3 newPos = originalPositions[i] + displacements[i] * scale;
+            nodes[i].transform.position = newPos;
         }
         
         if (anvilRope != null)

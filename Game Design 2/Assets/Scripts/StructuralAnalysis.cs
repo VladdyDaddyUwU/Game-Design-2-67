@@ -275,15 +275,9 @@ public static class StructuralAnalysis
             displacements[i] = new Vector2((float)u[2*i], (float)u[2*i+1]);
         }
         
-        bool isStable = true;
-        foreach(var p in stressPercentages)
-        {
-            if (p >= 100f)
-            {
-                isStable = false;
-                break;
-            }
-        }
+        // We have successfully solved the system. 
+        // Whether the materials fail (stress > 100%) is a separate check for the Game Manager.
+        bool isStable = true; 
 
         return new AnalysisResult
         {
