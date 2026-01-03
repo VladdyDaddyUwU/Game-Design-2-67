@@ -83,6 +83,12 @@ public class GameManager : MonoBehaviour
         {
             UndoLastAction();
         }
+
+        // Restart/Clear Level (R)
+        if (currentMode == GameMode.Build && Input.GetKeyDown(KeyCode.R))
+        {
+            RestartLevel();
+        }
         
         if (isCollapsing)
         {
@@ -135,6 +141,30 @@ public class GameManager : MonoBehaviour
         }
         
         Debug.Log("Undo: Removed last beam.");
+    }
+
+    public void RestartLevel()
+    {
+        // 1. Clear Data
+        structuralElements.Clear();
+        adjacencyList.Clear();
+        
+        // Re-initialize adjacency for anchors/nodes (restore base state)
+        foreach (var node in allNodes)
+        {
+            adjacencyList[node.id] = new List<int>();
+        }
+
+        // 2. Clear Visuals
+        if (structureHolder != null)
+        {
+            for (int i = structureHolder.childCount - 1; i >= 0; i--)
+            {
+                Destroy(structureHolder.GetChild(i).gameObject);
+            }
+        }
+
+        Debug.Log("Level Restarted: All beams cleared.");
     }
     
     public void InitializeStructure(GridController sourceGridController = null)
@@ -750,7 +780,9 @@ public class GameManager : MonoBehaviour
     
     void ResetSimulation()
     {
+         currentMode = GameMode.Build; // Force Build Mode
          isCollapsing = false;
+         Debug.Log("Simulation Reset. Back to Build Mode. Undo history preserved.");
 
          if (nodePositions != null && allNodes != null)
          {
@@ -766,8 +798,9 @@ public class GameManager : MonoBehaviour
                  var rb = n.GetComponent<Rigidbody2D>();
                  if (rb != null) Destroy(rb);
                  
-                 var col = n.GetComponent<CircleCollider2D>();
-                 if (col != null) Destroy(col);
+                 // Collider is kept to allow building interaction
+                 // var col = n.GetComponent<CircleCollider2D>();
+                 // if (col != null) Destroy(col);
 
                  // Restore Position
                  if (i < nodePositions.Count)
