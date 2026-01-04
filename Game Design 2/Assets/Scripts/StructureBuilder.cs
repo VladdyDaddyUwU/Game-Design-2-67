@@ -109,6 +109,11 @@ public class StructureBuilder : MonoBehaviour
         {
             isValid = false;
         }
+        // 4. Dead Zone Check
+        else if (gameManager.gridController != null && gameManager.gridController.IsSegmentIntersectingDeadZone(startNode.transform.position, endNode.transform.position))
+        {
+            isValid = false;
+        }
 
         Color feedbackColor = isValid ? Color.green : Color.red;
         tempLine.startColor = feedbackColor;
@@ -141,6 +146,13 @@ public class StructureBuilder : MonoBehaviour
         if (gameManager.DoesElementExist(startNode.id, endNode.id))
         {
             Debug.LogWarning("This beam already exists.");
+            return;
+        }
+
+        // Dead Zone Check
+        if (gameManager.gridController != null && gameManager.gridController.IsSegmentIntersectingDeadZone(startNode.transform.position, endNode.transform.position))
+        {
+            Debug.LogWarning("Cannot build through the restricted area (Dead Zone).");
             return;
         }
 

@@ -210,12 +210,15 @@ public class GridController : MonoBehaviour
                 intersectionPoints[x, y] = new Vector2(xPos, yPos);
                 vertices.Add(new Vector3(xPos, yPos, 0));
 
-                bool cell_bottom_left  = IsCellDestroyed(x - 1, y - 1);
-                bool cell_bottom_right = IsCellDestroyed(x,     y - 1);
-                bool cell_top_left     = IsCellDestroyed(x - 1, y);
-                bool cell_top_right    = IsCellDestroyed(x,     y);
+                // Check if node falls within the "Destroy Zone"
+                // We strictly keep the "Left Wall" (x = gridWidth - destroyWidth)
+                // We strictly keep the "Ceiling" (y = destroyHeight)
+                // We remove everything else inside (x > start) and below (y < height)
+                int startDestroyX = gridWidth - destroyWidth;
+                bool inDestroyX = x > startDestroyX;
+                bool inDestroyY = y < destroyHeight;
 
-                if (cell_bottom_left && cell_bottom_right && cell_top_left && cell_top_right)
+                if (inDestroyX && inDestroyY)
                 {
                     continue;
                 }
@@ -352,5 +355,35 @@ public class GridController : MonoBehaviour
         float xPos = x * lockedCellSize + lockedXOffset;
         float yPos = y * lockedCellSize + lockedYOffset;
         return new Vector2(xPos, yPos);
+    }
+
+    public bool IsSegmentIntersectingDeadZone(Vector2 startWorld, Vector2 endWorld)
+    {
+        if (destroyWidth <= 0 || destroyHeight <= 0) return false;
+
+        float startX = (startWorld.x - lockedXOffset) / lockedCellSize;
+        float startY = (startWorld.y - lockedYOffset) / lockedCellSize;
+        float endX = (endWorld.x - lockedXOffset) / lockedCellSize;
+        float endY = (endWorld.y - lockedYOffset) / lockedCellSize;
+
+        float wallX = gridWidth - destroyWidth;
+        float ceilingY = destroyHeight;
+
+        // Sample points along the line (excluding exact endpoints to allow connecting TO the wall)
+        int steps = 20;
+        for (int i = 1; i < steps; i++)
+        {
+            float t = i / (float)steps;
+            float px = Mathf.Lerp(startX, endX, t);
+            float py = Mathf.Lerp(startY, endY, t);
+
+            // Check if strictly inside the danger zone
+            // Use epsilon to allow grazing the edge
+            if (px > wallX + 0.001f && py < ceilingY - 0.001f)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }
