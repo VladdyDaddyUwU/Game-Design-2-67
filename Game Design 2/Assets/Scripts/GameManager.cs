@@ -42,6 +42,7 @@ public class GameManager : MonoBehaviour
     private Dictionary<int, List<int>> adjacencyList = new Dictionary<int, List<int>>();
     
     private bool isCollapsing = false;
+    private StructuralAnalysis.AnalysisResult lastAnalysisResult;
 
     void Start()
     {
@@ -98,6 +99,126 @@ public class GameManager : MonoBehaviour
             {
                 anvilRope.SetPosition(0, nodeMap[loadNodeId].transform.position);
                 anvilRope.SetPosition(1, anvilInstance.transform.position);
+            }
+        }
+
+        // Visualize Stress Percentages (O)
+        if (Input.GetKey(KeyCode.O))
+        {
+            // If we are in build mode, we calculate on the fly (Predictive)
+            if (currentMode == GameMode.Build)
+            {
+                 lastAnalysisResult = PerformAnalysis();
+            }
+            
+            ShowStressLabels();
+        }
+        else
+        {
+            HideStressLabels();
+        }
+    }
+
+    public void ShowStressLabels()
+    {
+        if (structuralElements == null || lastAnalysisResult.MemberStressPercentages == null || lastAnalysisResult.MemberForces == null) return;
+        if (structuralElements.Count != lastAnalysisResult.MemberStressPercentages.Length) return;
+
+        for (int i = 0; i < structuralElements.Count; i++)
+        {
+            int[] el = structuralElements[i];
+            int id1 = el[0];
+            int id2 = el[1];
+            float percentage = lastAnalysisResult.MemberStressPercentages[i];
+            float force = lastAnalysisResult.MemberForces[i];
+
+            if (!nodeMap.ContainsKey(id1) || !nodeMap.ContainsKey(id2)) continue;
+
+            Node n1 = nodeMap[id1];
+            Node n2 = nodeMap[id2];
+
+            // Find Visual Beam
+            string name1 = $"Beam({n1.x_index},{n1.y_index})-({n2.x_index},{n2.y_index})";
+            string name2 = $"Beam({n2.x_index},{n2.y_index})-({n1.x_index},{n1.y_index})";
+            
+            Transform beamTransform = structureHolder.Find(name1);
+            if (beamTransform == null) beamTransform = structureHolder.Find(name2);
+
+            if (beamTransform != null)
+            {
+                Transform labelTr = beamTransform.Find("StressLabel");
+                GameObject labelObj;
+                TextMesh tm;
+
+                if (labelTr == null)
+                {
+                    labelObj = new GameObject("StressLabel");
+                    labelObj.transform.SetParent(beamTransform);
+                    tm = labelObj.AddComponent<TextMesh>();
+                    tm.characterSize = 0.05f;
+                    tm.fontSize = 60;
+                    tm.anchor = TextAnchor.MiddleCenter;
+                    tm.alignment = TextAlignment.Center;
+                }
+                else
+                {
+                    labelObj = labelTr.gameObject;
+                    tm = labelObj.GetComponent<TextMesh>();
+                }
+
+                labelObj.SetActive(true);
+                
+                // Visual logic: minus sign for compression
+                string sign = (force < 0) ? "-" : "";
+                tm.text = $"{sign}{Mathf.RoundToInt(percentage)}%";
+                
+                // Color Code: Blue for Tension (+), Red for Compression (-)
+                // Match MATLAB: Blue = Tension, Red = Compression
+                if (force < 0)
+                {
+                    tm.color = percentage >= 100f ? Color.red : new Color(1f, 0.4f, 0.4f); // Brighter red if failed
+                }
+                else
+                {
+                    tm.color = percentage >= 100f ? Color.blue : new Color(0.4f, 0.4f, 1f); // Brighter blue if failed
+                }
+
+                // Positioning logic
+                Vector3 p1 = n1.transform.position;
+                Vector3 p2 = n2.transform.position;
+                
+                // Ensure p1 is left-most to keep text upright
+                if (p1.x > p2.x)
+                {
+                    Vector3 temp = p1; p1 = p2; p2 = temp;
+                }
+
+                Vector3 mid = (p1 + p2) / 2f;
+                Vector3 dir = (p2 - p1).normalized;
+                
+                // Normal vector (perpendicular 90 deg counter-clockwise)
+                Vector3 normal = new Vector3(-dir.y, dir.x, 0);
+                
+                // Offset slightly above
+                float offsetDistance = 0.15f;
+                labelObj.transform.position = mid + normal * offsetDistance;
+
+                // Rotation
+                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+                labelObj.transform.rotation = Quaternion.Euler(0, 0, angle);
+            }
+        }
+    }
+
+    public void HideStressLabels()
+    {
+        if (structureHolder == null) return;
+        foreach (Transform beam in structureHolder)
+        {
+            Transform label = beam.Find("StressLabel");
+            if (label != null)
+            {
+                label.gameObject.SetActive(false);
             }
         }
     }
@@ -505,95 +626,57 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        loadNodeId = gridController.GetTargetNodeID();
-
-        // --- PREPARE ANALYSIS DATA ---
-        // We must map Node IDs to a compact index range (0..N) containing ONLY active nodes.
-        // Unconnected nodes in the grid cause Singularity (Matrix Error) if included.
-        
-        HashSet<int> activeNodeIDs = new HashSet<int>();
-        
-        // 1. Include nodes connected by beams
-        foreach (var el in structuralElements)
-        {
-            activeNodeIDs.Add(el[0]);
-            activeNodeIDs.Add(el[1]);
-        }
-        
-        // 2. Include Anchors (must be part of system)
-        foreach (var anchorID in anchorNodeIds)
-        {
-            // Only add if it exists
-            if (nodeMap.ContainsKey(anchorID)) activeNodeIDs.Add(anchorID);
-        }
-        
-        // 3. Include Load Node
-        if (nodeMap.ContainsKey(loadNodeId)) activeNodeIDs.Add(loadNodeId);
-
-        // Build Mapping
-        List<Vector2> activePositions = new List<Vector2>();
-        Dictionary<int, int> idToIndex = new Dictionary<int, int>();
-        List<Node> activeNodesList = new List<Node>(); 
-        
-        int indexCounter = 0;
-        foreach (int id in activeNodeIDs)
-        {
-            if (nodeMap.TryGetValue(id, out Node node))
-            {
-                activePositions.Add(node.transform.position);
-                idToIndex[id] = indexCounter;
-                activeNodesList.Add(node);
-                indexCounter++;
-            }
-        }
-        
-        // Remap Elements
-        List<int[]> analysisElements = new List<int[]>();
-        foreach (var el in structuralElements)
-        {
-            if (idToIndex.ContainsKey(el[0]) && idToIndex.ContainsKey(el[1]))
-            {
-                analysisElements.Add(new int[] { idToIndex[el[0]], idToIndex[el[1]] });
-            }
-        }
-
-        // Remap Anchors
-        List<int> analysisFixedNodes = new List<int>();
-        foreach (var anchorID in anchorNodeIds)
-        {
-            if (idToIndex.ContainsKey(anchorID))
-                analysisFixedNodes.Add(idToIndex[anchorID]);
-        }
-
-        // Remap Loads
-        var analysisLoads = new Dictionary<int, Vector2>();
-        if (idToIndex.ContainsKey(loadNodeId))
-        {
-            analysisLoads.Add(idToIndex[loadNodeId], gravity * loadMass);
-        }
-
-        // --- NORMALIZE COORDINATES ---
-        // We divide by lockedCellSize so the backend math always sees 1 grid cell as 1.0 meters.
-        float normalizationFactor = gridController.lockedCellSize;
-        List<Vector2> normalizedPositions = activePositions.Select(p => p / normalizationFactor).ToList();
-
-        // --- RUN ANALYSIS ---
-        StructuralAnalysis.AnalysisResult result = StructuralAnalysis.RunAnalysis(
-            normalizedPositions,
-            analysisElements,
-            analysisFixedNodes,
-            analysisLoads,
-            youngsModulus,
-            memberCrossSectionArea,
-            memberYieldStress,
-            beamDensity
-        );
+        StructuralAnalysis.AnalysisResult result = PerformAnalysis();
+        lastAnalysisResult = result;
 
         if (result.IsStable)
         {
             Debug.Log("Structure is STABLE.");
-            // Apply deformation: The displacement is in "normalized meters", 
-            // so we scale it back up to "Unity Units" using the normalizationFactor.
+            
+            // Re-map active nodes for deformation application
+            // We need to reconstruct the list of active nodes to match the result indices
+            // This is a bit redundant but ensures safety. 
+            // Optimally, PerformAnalysis could return the mapping, but for now we re-derive or pass it.
+            // A simpler way: PerformAnalysis relies on 'allNodes' and 'structuralElements' which are class members.
+            // The mapping logic is deterministic.
+            
+            // Quick reconstruction of the Active Node List used in Analysis
+            // (Copying logic from PerformAnalysis to ensure deformation matches)
+             HashSet<int> activeNodeIDs = new HashSet<int>();
+            foreach (var el in structuralElements) { activeNodeIDs.Add(el[0]); activeNodeIDs.Add(el[1]); }
+            foreach (var anchorID in anchorNodeIds) { if (nodeMap.ContainsKey(anchorID)) activeNodeIDs.Add(anchorID); }
+            if (nodeMap.ContainsKey(loadNodeId)) activeNodeIDs.Add(loadNodeId);
+
+            List<Node> activeNodesList = new List<Node>(); 
+            foreach (int id in activeNodeIDs)
+            {
+                if (nodeMap.TryGetValue(id, out Node node)) activeNodesList.Add(node);
+            }
+            // Sort or iterate consistently? HashSet iteration order is undefined! 
+            // PerformAnalysis used: foreach (int id in activeNodeIDs) ...
+            // WE MUST BE CAREFUL. HashSet order is NOT guaranteed. 
+            // We must change PerformAnalysis to return the node list or enforce sorting.
+            // To fix this without changing the signature too much, let's just use the position list.
+            
+            // actually, let's fix PerformAnalysis first to be deterministic.
+            // ... (See PerformAnalysis implementation below which sorts or uses a list)
+            
+            // Since we split the function, capturing 'activeNodesList' is tricky. 
+            // Let's just recreate it deterministically.
+            var sortedIDs = activeNodeIDs.OrderBy(x => x).ToList(); // Sort by ID for consistency
+            activeNodesList.Clear();
+            List<Vector2> activePositions = new List<Vector2>();
+            
+            foreach (int id in sortedIDs)
+            {
+                if (nodeMap.TryGetValue(id, out Node node))
+                {
+                     activeNodesList.Add(node);
+                     activePositions.Add(node.transform.position);
+                }
+            }
+            
+            float normalizationFactor = gridController.lockedCellSize;
             ApplyDeformation(activeNodesList, activePositions, result.Displacements, normalizationFactor);
             
             bool failed = false;
@@ -629,6 +712,89 @@ public class GameManager : MonoBehaviour
             
         if (result.MemberStressPercentages != null)
             Debug.Log("Stress percentages: " + string.Join(", ", result.MemberStressPercentages));
+    }
+
+    public StructuralAnalysis.AnalysisResult PerformAnalysis()
+    {
+        loadNodeId = gridController.GetTargetNodeID();
+
+        // --- PREPARE ANALYSIS DATA ---
+        HashSet<int> activeNodeIDs = new HashSet<int>();
+        
+        // 1. Include nodes connected by beams
+        foreach (var el in structuralElements)
+        {
+            activeNodeIDs.Add(el[0]);
+            activeNodeIDs.Add(el[1]);
+        }
+        
+        // 2. Include Anchors (must be part of system)
+        foreach (var anchorID in anchorNodeIds)
+        {
+            if (nodeMap.ContainsKey(anchorID)) activeNodeIDs.Add(anchorID);
+        }
+        
+        // 3. Include Load Node
+        if (nodeMap.ContainsKey(loadNodeId)) activeNodeIDs.Add(loadNodeId);
+
+        // Deterministic Sorting to ensure indices match between calls
+        var sortedActiveIDs = activeNodeIDs.OrderBy(x => x).ToList();
+
+        // Build Mapping
+        List<Vector2> activePositions = new List<Vector2>();
+        Dictionary<int, int> idToIndex = new Dictionary<int, int>();
+        
+        int indexCounter = 0;
+        foreach (int id in sortedActiveIDs)
+        {
+            if (nodeMap.TryGetValue(id, out Node node))
+            {
+                activePositions.Add(node.transform.position);
+                idToIndex[id] = indexCounter;
+                indexCounter++;
+            }
+        }
+        
+        // Remap Elements
+        List<int[]> analysisElements = new List<int[]>();
+        foreach (var el in structuralElements)
+        {
+            if (idToIndex.ContainsKey(el[0]) && idToIndex.ContainsKey(el[1]))
+            {
+                analysisElements.Add(new int[] { idToIndex[el[0]], idToIndex[el[1]] });
+            }
+        }
+
+        // Remap Anchors
+        List<int> analysisFixedNodes = new List<int>();
+        foreach (var anchorID in anchorNodeIds)
+        {
+            if (idToIndex.ContainsKey(anchorID))
+                analysisFixedNodes.Add(idToIndex[anchorID]);
+        }
+
+        // Remap Loads
+        var analysisLoads = new Dictionary<int, Vector2>();
+        if (idToIndex.ContainsKey(loadNodeId))
+        {
+            analysisLoads.Add(idToIndex[loadNodeId], gravity * loadMass);
+        }
+
+        // --- NORMALIZE COORDINATES ---
+        float normalizationFactor = gridController.lockedCellSize;
+        List<Vector2> normalizedPositions = activePositions.Select(p => p / normalizationFactor).ToList();
+
+        // --- RUN ANALYSIS ---
+        return StructuralAnalysis.RunAnalysis(
+            normalizedPositions,
+            analysisElements,
+            analysisFixedNodes,
+            analysisLoads,
+            youngsModulus,
+            memberCrossSectionArea,
+            memberYieldStress,
+            beamDensity
+        );
     }
 
     void ApplyDeformation(List<Node> nodes, List<Vector2> originalPositions, Vector2[] displacements, float scale = 1.0f)
