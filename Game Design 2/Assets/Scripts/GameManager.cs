@@ -121,16 +121,19 @@ public class GameManager : MonoBehaviour
 
     public void ShowStressLabels()
     {
-        if (structuralElements == null || lastAnalysisResult.MemberStressPercentages == null || lastAnalysisResult.MemberForces == null) return;
-        if (structuralElements.Count != lastAnalysisResult.MemberStressPercentages.Length) return;
+        if (structuralElements == null) return;
+        
+        // If unstable or data is missing, show "UNSTABLE"
+        bool isDataValid = lastAnalysisResult.IsStable && 
+                           lastAnalysisResult.MemberStressPercentages != null && 
+                           lastAnalysisResult.MemberForces != null &&
+                           structuralElements.Count == lastAnalysisResult.MemberStressPercentages.Length;
 
         for (int i = 0; i < structuralElements.Count; i++)
         {
             int[] el = structuralElements[i];
             int id1 = el[0];
             int id2 = el[1];
-            float percentage = lastAnalysisResult.MemberStressPercentages[i];
-            float force = lastAnalysisResult.MemberForces[i];
 
             if (!nodeMap.ContainsKey(id1) || !nodeMap.ContainsKey(id2)) continue;
 
@@ -168,44 +171,42 @@ public class GameManager : MonoBehaviour
 
                 labelObj.SetActive(true);
                 
-                // Visual logic: minus sign for compression
-                string sign = (force < 0) ? "-" : "";
-                tm.text = $"{sign}{Mathf.RoundToInt(percentage)}%";
-                
-                // Color Code: Blue for Tension (+), Red for Compression (-)
-                // Match MATLAB: Blue = Tension, Red = Compression
-                if (force < 0)
+                // Positioning logic (always needed)
+                Vector3 p1 = n1.transform.position;
+                Vector3 p2 = n2.transform.position;
+                if (p1.x > p2.x) { Vector3 temp = p1; p1 = p2; p2 = temp; }
+                Vector3 mid = (p1 + p2) / 2f;
+                Vector3 dir = (p2 - p1).normalized;
+                Vector3 normal = new Vector3(-dir.y, dir.x, 0);
+                float offsetDistance = 0.15f;
+                labelObj.transform.position = mid + normal * offsetDistance;
+                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+                labelObj.transform.rotation = Quaternion.Euler(0, 0, angle);
+
+                if (isDataValid)
                 {
-                    tm.color = percentage >= 100f ? Color.red : new Color(1f, 0.4f, 0.4f); // Brighter red if failed
+                    float percentage = lastAnalysisResult.MemberStressPercentages[i];
+                    float force = lastAnalysisResult.MemberForces[i];
+
+                    // Visual logic: minus sign for compression
+                    string sign = (force < 0) ? "-" : "";
+                    tm.text = $"{sign}{Mathf.RoundToInt(percentage)}%";
+                    
+                    // Color Code
+                    if (force < 0)
+                    {
+                        tm.color = percentage >= 100f ? Color.red : new Color(1f, 0.4f, 0.4f); 
+                    }
+                    else
+                    {
+                        tm.color = percentage >= 100f ? Color.blue : new Color(0.4f, 0.4f, 1f); 
+                    }
                 }
                 else
                 {
-                    tm.color = percentage >= 100f ? Color.blue : new Color(0.4f, 0.4f, 1f); // Brighter blue if failed
+                    tm.text = "UNSTABLE";
+                    tm.color = Color.red;
                 }
-
-                // Positioning logic
-                Vector3 p1 = n1.transform.position;
-                Vector3 p2 = n2.transform.position;
-                
-                // Ensure p1 is left-most to keep text upright
-                if (p1.x > p2.x)
-                {
-                    Vector3 temp = p1; p1 = p2; p2 = temp;
-                }
-
-                Vector3 mid = (p1 + p2) / 2f;
-                Vector3 dir = (p2 - p1).normalized;
-                
-                // Normal vector (perpendicular 90 deg counter-clockwise)
-                Vector3 normal = new Vector3(-dir.y, dir.x, 0);
-                
-                // Offset slightly above
-                float offsetDistance = 0.15f;
-                labelObj.transform.position = mid + normal * offsetDistance;
-
-                // Rotation
-                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-                labelObj.transform.rotation = Quaternion.Euler(0, 0, angle);
             }
         }
     }

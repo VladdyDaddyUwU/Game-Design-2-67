@@ -213,6 +213,17 @@ public static class StructuralAnalysis
             return new AnalysisResult { IsStable = false };
         }
 
+        // Sanity Check: Mechanism Detection via Large Displacements
+        // If the structure is a mechanism, displacements will blow up to infinity (or very large numbers).
+        foreach (double val in u_f)
+        {
+            if (Mathf.Abs((float)val) > 1000.0f) 
+            {
+                Debug.LogWarning("Simulation detected extremely large displacements (> 1000m). Treating as unstable mechanism.");
+                return new AnalysisResult { IsStable = false };
+            }
+        }
+
         // Reconstruct full displacement vector u
         var u = new double[totalDOFs];
         for(int i=0; i<freeDOFs.Count; i++)
