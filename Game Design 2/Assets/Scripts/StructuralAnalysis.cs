@@ -248,7 +248,7 @@ public static class StructuralAnalysis
             // Euler Buckling Critical Load (P_cr = pi^2 * E * I / L^2)
             // Assuming square cross section: I = a^4 / 12 = A^2 / 12
             float momentOfInertia = (float) (Mathf.Pow(Mathf.Sqrt(crossSectionArea), 4) / 12.0f);
-            float maxCompressiveForce = (float)((Mathf.PI * Mathf.PI * youngsModulus * momentOfInertia) / ((float)L * (float)L));
+            float maxCompressiveBucklingLoad = (float)((Mathf.PI * Mathf.PI * youngsModulus * momentOfInertia) / ((float)L * (float)L));
 
             if (Mathf.Abs((float)force) < 1e-4)
             {
@@ -260,7 +260,11 @@ public static class StructuralAnalysis
             }
             else // Compression
             {
-                stressPercentages[e] = (float)(-force / maxCompressiveForce) * 100f;
+                // MATLAB Logic: percentages(i) = max(-memberForces(i)/P(i) * 100, -memberForces(i)/Fmax * 100);
+                float bucklingPercentage = (float)(-force / maxCompressiveBucklingLoad) * 100f;
+                float yieldPercentage = (float)(-force / maxTensileForce) * 100f;
+                
+                stressPercentages[e] = Mathf.Max(bucklingPercentage, yieldPercentage);
             }
         }
 
