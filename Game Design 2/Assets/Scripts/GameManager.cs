@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -12,6 +13,7 @@ public class GameManager : MonoBehaviour
     [Header("Component References")]
     public GridController gridController;
     public StructureBuilder structureBuilder;
+    public UIManager uiManager;
     public Transform structureHolder;
     public Transform elementsHolder;
 
@@ -61,6 +63,16 @@ public class GameManager : MonoBehaviour
         }
 
         if (structureBuilder == null) structureBuilder = FindObjectOfType<StructureBuilder>();
+        if (uiManager == null) 
+        {
+            uiManager = FindObjectOfType<UIManager>();
+            // If still null, create it (it's a utility script)
+            if (uiManager == null)
+            {
+                GameObject uiObj = new GameObject("UIManager");
+                uiManager = uiObj.AddComponent<UIManager>();
+            }
+        }
         
         // InitializeStructure(); // DO NOT CALL THIS HERE - GridController will call it
     }
@@ -700,6 +712,8 @@ public class GameManager : MonoBehaviour
                 Debug.Log("SUCCESS: Human Saved!");
                 if (humanInstance != null) 
                     humanInstance.GetComponent<Renderer>().material.color = Color.blue; 
+                
+                StartCoroutine(LevelCompleteSequence());
             }
         }
         else
@@ -713,6 +727,20 @@ public class GameManager : MonoBehaviour
             
         if (result.MemberStressPercentages != null)
             Debug.Log("Stress percentages: " + string.Join(", ", result.MemberStressPercentages));
+    }
+
+    IEnumerator LevelCompleteSequence()
+    {
+        if (uiManager != null) uiManager.ShowLevelComplete();
+        
+        yield return new WaitForSeconds(3.5f);
+        
+        if (uiManager != null) uiManager.HideLevelComplete();
+        
+        // Return to Build Mode and Clear
+        currentMode = GameMode.Build;
+        ResetSimulation(); // Restore physics state
+        RestartLevel(); // Clear beams
     }
 
     public StructuralAnalysis.AnalysisResult PerformAnalysis()
