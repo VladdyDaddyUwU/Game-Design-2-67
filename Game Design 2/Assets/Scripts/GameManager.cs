@@ -689,6 +689,15 @@ public class GameManager : MonoBehaviour
                 }
             }
             
+            foreach (int id in sortedIDs)
+            {
+                if (nodeMap.TryGetValue(id, out Node node))
+                {
+                     activeNodesList.Add(node);
+                     activePositions.Add(node.transform.position);
+                }
+            }
+            
             float normalizationFactor = gridController.lockedCellSize;
             ApplyDeformation(activeNodesList, activePositions, result.Displacements, normalizationFactor);
             
@@ -911,18 +920,23 @@ public class GameManager : MonoBehaviour
             else
             {
                 rb.bodyType = RigidbodyType2D.Dynamic;
-                rb.mass = 10f; // Give nodes some weight
-                rb.linearDamping = 0.5f;
+                rb.mass = 10f; 
+                rb.linearDamping = 1f; // Increased damping to prevent "flying"
+                rb.angularDamping = 1f;
+                rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous; // Prevent tunneling
+                rb.interpolation = RigidbodyInterpolation2D.Interpolate;
             }
             
             // Add collider if missing
             if (node.gameObject.GetComponent<CircleCollider2D>() == null)
             {
-                node.gameObject.AddComponent<CircleCollider2D>().radius = 0.2f;
+                var col = node.gameObject.AddComponent<CircleCollider2D>();
+                col.radius = 0.2f;
+                // Optional: Physics Material with friction could be added here
             }
         }
 
-        // 2. Convert Beams to Joints
+        // 2. Convert Beams to Joints (MATCHING MATH MODEL: DistanceJoints = Pin Joints)
         foreach (var element in structuralElements)
         {
             int id1 = element[0];
@@ -930,16 +944,20 @@ public class GameManager : MonoBehaviour
 
             if (nodeMap.TryGetValue(id1, out Node n1) && nodeMap.TryGetValue(id2, out Node n2))
             {
-                // Use FixedJoint2D to simulate a welded beam (rigid relative position AND rotation)
-                FixedJoint2D joint = n1.gameObject.AddComponent<FixedJoint2D>();
+                // Use DistanceJoint2D to simulate a Truss member (Rod that can rotate)
+                // This allows mechanisms (like a square) to collapse as expected.
+                DistanceJoint2D joint = n1.gameObject.AddComponent<DistanceJoint2D>();
                 joint.connectedBody = n2.GetComponent<Rigidbody2D>();
-                joint.autoConfigureConnectedAnchor = true; // Lock current relative pos/rot
-
-                // Add "Softness" to simulate bending metal and prevent physics explosions
-                joint.dampingRatio = 0.8f; 
-                joint.frequency = 10f; // Stiff but allows some flex
+                joint.autoConfigureDistance = true; // Lock exact current distance
+                joint.maxDistanceOnly = false; // Rigid rod behavior (push and pull)
                 
-                joint.enableCollision = false;
+                // Make it stiff so it acts like steel, not a spring
+                // Setting frequency to 0 makes it a perfectly rigid constraint in Box2D
+                // However, slightly soft (e.g. 100) helps stability. Let's try 0 (Rigid) first for accuracy.
+                // If it explodes, we will use high frequency.
+                // joint.useLimits = false; // Removed as it is not a valid property for DistanceJoint2D
+                
+                joint.enableCollision = false; // Important: Connected nodes shouldn't collide with each other
             }
         }
 
@@ -947,8 +965,6 @@ public class GameManager : MonoBehaviour
         if (anvilInstance != null)
         {
             // Remove 3D components first to avoid conflicts
-            // MUST use DestroyImmediate because Destroy() is delayed to end of frame,
-            // causing the AddComponent<Rigidbody2D> below to fail due to conflict.
             var rb3d = anvilInstance.GetComponent<Rigidbody>();
             if (rb3d != null) DestroyImmediate(rb3d);
             var col3d = anvilInstance.GetComponent<Collider>();
@@ -957,6 +973,8 @@ public class GameManager : MonoBehaviour
             Rigidbody2D rb2d = anvilInstance.GetComponent<Rigidbody2D>();
             if (rb2d == null) rb2d = anvilInstance.AddComponent<Rigidbody2D>();
             rb2d.mass = 500f; // Heavy!
+            rb2d.linearDamping = 0.5f;
+            rb2d.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             
             // Add 2D collider so it hits the human
             if (anvilInstance.GetComponent<BoxCollider2D>() == null)
@@ -969,6 +987,7 @@ public class GameManager : MonoBehaviour
                 rope.autoConfigureDistance = false;
                 rope.distance = anvilHangingDistance;
                 rope.maxDistanceOnly = true; // Rope behavior (can fold, can't stretch)
+                rope.enableCollision = false;
             }
         }
     }
