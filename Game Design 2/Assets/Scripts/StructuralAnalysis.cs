@@ -23,6 +23,62 @@ public static class StructuralAnalysis
             set { data[row, col] = value; }
         }
 
+        public static int CalculateRank(Matrix A)
+        {
+            int m = A.Rows;
+            int n = A.Cols;
+            double[,] mat = (double[,])A.data.Clone();
+            int rank = 0;
+
+            for (int j = 0; j < n && rank < m; j++)
+            {
+                int pivot = rank;
+                for (int i = rank + 1; i < m; i++)
+                {
+                    if (System.Math.Abs(mat[i, j]) > System.Math.Abs(mat[pivot, j]))
+                        pivot = i;
+                }
+
+                if (System.Math.Abs(mat[pivot, j]) > 1.0)
+                {
+                    // Swap rows
+                    for (int k = j; k < n; k++)
+                    {
+                        double temp = mat[rank, k];
+                        mat[rank, k] = mat[pivot, k];
+                        mat[pivot, k] = temp;
+                    }
+
+                    // Eliminate rows below
+                    for (int i = rank + 1; i < m; i++)
+                    {
+                        double factor = mat[i, j] / mat[rank, j];
+                        for (int k = j; k < n; k++)
+                            mat[i, k] -= factor * mat[rank, k];
+                    }
+                    rank++;
+                }
+            }
+            return rank;
+        }
+
+        public string ToFormattedString()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"Matrix Data ({Rows}x{Cols}):");
+            for (int i = 0; i < Rows; i++)
+            {
+                string row = "";
+                for (int j = 0; j < Cols; j++)
+                {
+                    // Using scientific notation with 2 decimals for readability
+                    row += data[i, j].ToString("E2").PadLeft(11) + " ";
+                }
+                sb.AppendLine(row);
+            }
+            return sb.ToString();
+        }
+
         // Basic matrix solver using Gaussian elimination for Ax = b
         public static double[] Solve(Matrix A, double[] b)
         {
@@ -45,7 +101,7 @@ public static class StructuralAnalysis
                 int maxRow = i;
                 for (int k = i + 1; k < n; k++)
                 {
-                    if (Mathf.Abs((float)Ab[k, i]) > Mathf.Abs((float)Ab[maxRow, i]))
+                    if (System.Math.Abs(Ab[k, i]) > System.Math.Abs(Ab[maxRow, i]))
                     {
                         maxRow = k;
                     }
@@ -59,10 +115,15 @@ public static class StructuralAnalysis
                     Ab[maxRow, k] = temp;
                 }
                 
+                // Debug Pivot
+                // Debug.Log($"[Matrix Debug] Row {i}: Pivot Value = {Ab[i, i]:E4}");
+
                 // Check for singular or near-singular matrix (Mechanism detected)
-                if (Mathf.Abs((float)Ab[i,i]) <= 1e-9)
+                // Threshold increased to 1.0 to catch "floppy" mechanisms caused by tiny coordinate noise.
+                // Relative to 10^8 stiffness, 1.0 is effectively zero.
+                if (System.Math.Abs(Ab[i, i]) <= 1.0)
                 {
-                    Debug.LogError($"Matrix is singular at row {i}. The structure is a mechanism (unstable).");
+                    Debug.LogError($"[Matrix Solver FAILED] Matrix is singular or has extremely weak stiffness at row {i} (Pivot: {Ab[i, i]:E4}). The structure is likely a mechanism.");
                     return null;
                 }
 
@@ -206,10 +267,25 @@ public static class StructuralAnalysis
             }
         }
 
+        // --- DEBUG: Rank & Nullity Check ---
+        int rank = Matrix.CalculateRank(K_ff);
+        int numVars = freeDOFs.Count;
+        int nullity = numVars - rank;
+        
+        Debug.Log($"[Analysis Debug] Free DOFs: {numVars}, Rank(K_ff): {rank}, Nullity: {nullity}");
+        Debug.Log($"[Matrix Dump] Stiffness Matrix (K_ff):\n{K_ff.ToFormattedString()}");
+        
+        if (nullity > 0)
+        {
+            Debug.LogError($"[Analysis FAILED] Mechanism detected! Nullity is {nullity} (should be 0). The structure has {nullity} unconstrained degrees of freedom.");
+            return new AnalysisResult { IsStable = false };
+        }
+
         double[] u_f = Matrix.Solve(K_ff, F_f);
         
         if (u_f == null) // Solver failed (Unstable)
         {
+            Debug.Log($"[Matrix Dump] Full Stiffness Matrix (K_ff) that caused the solver failure:\n{K_ff.ToFormattedString()}");
             return new AnalysisResult { IsStable = false };
         }
 
@@ -217,9 +293,9 @@ public static class StructuralAnalysis
         // If the structure is a mechanism, displacements will blow up to infinity (or very large numbers).
         foreach (double val in u_f)
         {
-            if (Mathf.Abs((float)val) > 1000.0f) 
+            if (System.Math.Abs(val) > 10.0) 
             {
-                Debug.LogWarning("Simulation detected extremely large displacements (> 1000m). Treating as unstable mechanism.");
+                Debug.LogWarning($"Simulation detected extremely large displacements (> 10m). Treating as unstable mechanism. Value: {val}");
                 return new AnalysisResult { IsStable = false };
             }
         }
