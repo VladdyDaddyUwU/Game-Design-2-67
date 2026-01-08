@@ -4,6 +4,10 @@ using System.Collections.Generic;
 [CreateAssetMenu(fileName = "NewLevel", menuName = "Structural/Level Data")]
 public class LevelData : ScriptableObject
 {
+    // Static variable to pass data between scenes (Menu -> Game)
+    // -1 indicates no specific level was selected (default start)
+    public static int SelectedLevel = -1;
+
     [Header("Grid Dimensions")]
     public int gridWidth = 10;
     public int gridHeight = 10;

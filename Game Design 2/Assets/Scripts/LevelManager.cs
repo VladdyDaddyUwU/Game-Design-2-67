@@ -14,6 +14,14 @@ public class LevelManager : MonoBehaviour
         if (gridController == null) gridController = FindObjectOfType<GridController>();
         if (gameManager == null) gameManager = FindObjectOfType<GameManager>();
 
+        // Check if a level was selected from the Menu
+        if (LevelData.SelectedLevel >= 0)
+        {
+            currentLevelIndex = LevelData.SelectedLevel;
+            // Reset it so future play-tests from editor don't get stuck
+            LevelData.SelectedLevel = -1; 
+        }
+
         LoadLevel(currentLevelIndex);
     }
 
