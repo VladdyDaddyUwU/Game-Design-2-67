@@ -18,7 +18,7 @@ MonoBehaviour:
   anchorCoords:
   - {x: 0, y: 0}
   - {x: 1, y: 0}
-  loadNodeCoords: {x: 0, y: 0}
+  loadNodeCoords: {x: 2, y: 2}
   loadMass: 10000
   deadZones:
   - x: 1
