@@ -1,6 +1,4 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using TMPro;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -10,10 +8,6 @@ public class GameManager : MonoBehaviour
 {
     [Header("Game State")]
     public GameMode currentMode = GameMode.Build;
-    public int currentLevel;
-
-    [Header("UI References")]
-    public TextMeshProUGUI materialDisplayText;
 
     [Header("Component References")]
     public GridController gridController;
@@ -31,10 +25,9 @@ public class GameManager : MonoBehaviour
 
     [Header("Structural Properties")]
     public float youngsModulus = 210e9f;
-    public float memberCrossSectionArea = 0.0025f; // Default: 5cm x 5cm
+    public float memberCrossSectionArea = 0.0025f; // 5cm x 5cm
     public float memberYieldStress = 250e6f;
     public float beamDensity = 7850f; // Density of Steel (kg/m3)
-    private float availableMaterial;
 
     [Header("Simulation Setup")]
     public List<int> anchorNodeIds = new List<int> { 0, 1 }; // Default anchors
@@ -50,16 +43,8 @@ public class GameManager : MonoBehaviour
     
     private bool isCollapsing = false;
 
-    public void GoToMenu()
-    {
-        SceneManager.LoadScene("MenuScene");
-    }
-
     void Start()
     {
-        // Configure the level based on the selection from the menu
-        ConfigureLevel(LevelData.SelectedLevel);
-
         if (gridController == null)
         {
             GameObject gridManagerObj = GameObject.Find("GridManager");
@@ -77,61 +62,6 @@ public class GameManager : MonoBehaviour
         if (structureBuilder == null) structureBuilder = FindObjectOfType<StructureBuilder>();
         
         // InitializeStructure(); // DO NOT CALL THIS HERE - GridController will call it
-    }
-
-    private void ConfigureLevel(int levelNumber)
-    {
-        currentLevel = levelNumber;
-        Debug.Log("Configuring Level: " + currentLevel);
-
-        // Default cross-section for levels 1-9
-        memberCrossSectionArea = 0.05f * 0.05f; // 5cm x 5cm = 0.0025
-
-        switch (currentLevel)
-        {
-            case 1:
-                availableMaterial = 1f;
-                break;
-            case 2:
-                availableMaterial = 1.5f;
-                break;
-            case 3:
-                availableMaterial = 2.5f;
-                break;
-            case 4:
-                availableMaterial = 10f;
-                break;
-            case 5:
-                availableMaterial = 12f;
-                break;
-            case 6:
-                availableMaterial = 20f;
-                break;
-            case 7:
-                availableMaterial = 25f;
-                break;
-            case 8:
-                availableMaterial = 15f;
-                break;
-            case 9:
-                availableMaterial = 25f;
-                break;
-            case 10:
-                availableMaterial = 30f;
-                // Level 10 has a different cross section
-                memberCrossSectionArea = 0.03f * 0.03f; // 3cm x 3cm = 0.0009
-                break;
-            default:
-                Debug.LogWarning("Level " + currentLevel + " not configured. Defaulting to Level 1 settings.");
-                availableMaterial = 1f;
-                break;
-        }
-
-        // Update UI Text
-        if (materialDisplayText != null)
-        {
-            materialDisplayText.text = availableMaterial.ToString("F1") + " m left";
-        }
     }
 
     void Update()
