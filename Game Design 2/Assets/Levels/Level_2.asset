@@ -15,7 +15,9 @@ MonoBehaviour:
   gridWidth: 3
   gridHeight: 3
   maxMaterialLength: 20
-  anchorCoords: []
+  anchorCoords:
+  - {x: 0, y: 0}
+  - {x: 1, y: 0}
   loadNodeCoords: {x: 0, y: 0}
   loadMass: 10000
   deadZones:

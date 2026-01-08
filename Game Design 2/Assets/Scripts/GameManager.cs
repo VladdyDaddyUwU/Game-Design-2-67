@@ -45,6 +45,7 @@ public class GameManager : MonoBehaviour
     
     private bool isCollapsing = false;
     private StructuralAnalysis.AnalysisResult lastAnalysisResult;
+    private int prebuiltElementCount = 0; // Track how many elements are permanent
 
     void Start()
     {
@@ -77,8 +78,25 @@ public class GameManager : MonoBehaviour
         // InitializeStructure(); // DO NOT CALL THIS HERE - GridController will call it
     }
 
+    public void OpenPauseMenu()
+    {
+        if (uiManager != null)
+        {
+            uiManager.OpenPauseMenu();
+        }
+    }
+
     void Update()
     {
+        // Pause Menu Toggle (X)
+        if (Input.GetKeyDown(KeyCode.X))
+        {
+            if (uiManager != null) uiManager.TogglePauseMenu();
+        }
+
+        // If Menu is Open, Block all other inputs
+        if (uiManager != null && uiManager.IsPauseMenuOpen()) return;
+
         // Example: Press 'S' to start simulation
         if (Input.GetKeyDown(KeyCode.S))
         {
@@ -239,6 +257,13 @@ public class GameManager : MonoBehaviour
     public void UndoLastAction()
     {
         if (structuralElements.Count == 0) return;
+        
+        // Prevent undoing pre-built structures
+        if (structuralElements.Count <= prebuiltElementCount)
+        {
+            Debug.Log("Cannot undo pre-built beams.");
+            return;
+        }
 
         // 1. Get the last element added
         int[] lastElement = structuralElements[structuralElements.Count - 1];
@@ -279,26 +304,44 @@ public class GameManager : MonoBehaviour
 
     public void RestartLevel()
     {
-        // 1. Clear Data
-        structuralElements.Clear();
-        adjacencyList.Clear();
+        // 1. Clear Data down to prebuilt level
+        // Remove visuals for all elements that are ABOVE the prebuilt count
+        // Iterate backwards from current count down to prebuilt count
         
-        // Re-initialize adjacency for anchors/nodes (restore base state)
-        foreach (var node in allNodes)
-        {
-            adjacencyList[node.id] = new List<int>();
-        }
-
-        // 2. Clear Visuals
         if (structureHolder != null)
         {
-            for (int i = structureHolder.childCount - 1; i >= 0; i--)
+            for (int i = structuralElements.Count - 1; i >= prebuiltElementCount; i--)
             {
-                Destroy(structureHolder.GetChild(i).gameObject);
+                int[] el = structuralElements[i];
+                int id1 = el[0];
+                int id2 = el[1];
+                
+                // Remove from Adjacency
+                if (adjacencyList.ContainsKey(id1)) adjacencyList[id1].Remove(id2);
+                if (adjacencyList.ContainsKey(id2)) adjacencyList[id2].Remove(id1);
+
+                // Remove Visuals
+                if (nodeMap.ContainsKey(id1) && nodeMap.ContainsKey(id2))
+                {
+                    Node n1 = nodeMap[id1];
+                    Node n2 = nodeMap[id2];
+                    string name1 = $"Beam({n1.x_index},{n1.y_index})-({n2.x_index},{n2.y_index})";
+                    string name2 = $"Beam({n2.x_index},{n2.y_index})-({n1.x_index},{n1.y_index})";
+                    
+                    Transform child = structureHolder.Find(name1);
+                    if (child == null) child = structureHolder.Find(name2);
+                    if (child != null) Destroy(child.gameObject);
+                }
             }
         }
+        
+        // Truncate list
+        if (structuralElements.Count > prebuiltElementCount)
+        {
+            structuralElements.RemoveRange(prebuiltElementCount, structuralElements.Count - prebuiltElementCount);
+        }
 
-        Debug.Log("Level Restarted: All beams cleared.");
+        Debug.Log("Level Restarted: Player beams cleared, pre-built preserved.");
     }
     
     public void InitializeStructure(GridController sourceGridController = null)
@@ -335,6 +378,7 @@ public class GameManager : MonoBehaviour
         // Clear old data before repopulating
         adjacencyList.Clear();
         structuralElements.Clear();
+        prebuiltElementCount = 0; // Reset count
 
         // Manage Structure Holder (Visuals)
         if (structureHolder == null)
@@ -434,10 +478,17 @@ public class GameManager : MonoBehaviour
                          lr.endWidth = 0.05f;
                          lr.SetPosition(0, startNode.transform.position);
                          lr.SetPosition(1, endNode.transform.position);
+                         
+                         // Visual: Make pre-built beams darker
+                         lr.startColor = Color.black;
+                         lr.endColor = Color.black;
+                         
                          beamObj.name = $"Beam({startNode.x_index},{startNode.y_index})-({endNode.x_index},{endNode.y_index})";
                     }
                 }
             }
+            // Lock the count so Undo/Restart knows where to stop
+            prebuiltElementCount = structuralElements.Count;
         }
 
         SpawnGameElements();

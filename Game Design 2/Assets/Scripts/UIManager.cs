@@ -6,11 +6,17 @@ public class UIManager : MonoBehaviour
 {
     private GameObject canvasObj;
     private GameObject panelObj;
-    private Text levelCompleteText;
+    private GameObject pauseMenuObj; 
+    private GameObject levelSelectMenuObj; // New Level Select Panel
+    private LevelManager levelManager; // Reference to access levels
+    private Text levelCompleteText; // Missing field declaration
 
     void Start()
     {
+        levelManager = FindObjectOfType<LevelManager>();
         SetupUI();
+        SetupPauseMenu(); 
+        SetupLevelSelectMenu(); // Build the secondary menu
     }
 
     private void SetupUI()
@@ -81,6 +87,391 @@ public class UIManager : MonoBehaviour
 
         // Start hidden
         if (panelObj != null) panelObj.SetActive(false);
+    }
+
+    private void SetupPauseMenu()
+    {
+        // Check if exists
+        Transform existingPause = canvasObj.transform.Find("PauseMenu");
+        if (existingPause != null)
+        {
+            pauseMenuObj = existingPause.gameObject;
+            pauseMenuObj.SetActive(false);
+            return;
+        }
+
+        Font workingFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (workingFont == null) workingFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        
+        // Create Panel
+        pauseMenuObj = new GameObject("PauseMenu");
+        pauseMenuObj.transform.SetParent(canvasObj.transform, false);
+
+        Image bg = pauseMenuObj.AddComponent<Image>();
+        bg.color = new Color(0.05f, 0.05f, 0.1f, 0.95f); 
+        RectTransform rect = pauseMenuObj.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero;
+
+        // Title
+        GameObject titleObj = new GameObject("Title");
+        titleObj.transform.SetParent(pauseMenuObj.transform, false);
+        Text titleText = titleObj.AddComponent<Text>();
+        titleText.text = "PAUSED";
+        titleText.font = workingFont;
+        titleText.fontSize = 80;
+        titleText.fontStyle = FontStyle.Bold;
+        titleText.alignment = TextAnchor.MiddleCenter;
+        titleText.color = Color.white;
+        
+        RectTransform titleRect = titleObj.GetComponent<RectTransform>();
+        titleRect.anchorMin = new Vector2(0.5f, 0.85f);
+        titleRect.anchorMax = new Vector2(0.5f, 0.85f);
+        titleRect.pivot = new Vector2(0.5f, 0.5f);
+        titleRect.sizeDelta = new Vector2(600, 150);
+        titleRect.anchoredPosition = Vector2.zero;
+
+                    // --- LEFT COLUMN (BUILDING) ---
+
+                    GameObject buildInfo = new GameObject("InfoBuilding");
+
+                    buildInfo.transform.SetParent(pauseMenuObj.transform, false);
+
+                    Text buildText = buildInfo.AddComponent<Text>();
+
+                    buildText.text = "<b>BUILDING</b>\n\nLeft Drag: Place\nRight Click: Delete\nZ: Undo Last\nR: Clear Level\nHold 'O': Stress";
+
+                    buildText.font = workingFont;
+
+                    buildText.fontSize = 22;
+
+                    buildText.lineSpacing = 1.2f;
+
+                    buildText.alignment = TextAnchor.UpperCenter;
+
+                    buildText.color = new Color(0.9f, 0.9f, 0.9f);
+
+                    buildText.supportRichText = true;
+
+                    
+
+                    RectTransform buildRect = buildInfo.GetComponent<RectTransform>();
+
+                    buildRect.anchorMin = new Vector2(0.1f, 0.5f);
+
+                    buildRect.anchorMax = new Vector2(0.35f, 0.7f);
+
+                    buildRect.offsetMin = Vector2.zero; buildRect.offsetMax = Vector2.zero;
+
+            
+
+                    // --- CENTER COLUMN (SYSTEM) ---
+
+                    GameObject sysInfo = new GameObject("InfoSystem");
+
+                    sysInfo.transform.SetParent(pauseMenuObj.transform, false);
+
+                    Text sysText = sysInfo.AddComponent<Text>();
+
+                    sysText.text = "<b>SYSTEM</b>\n\nX: Pause / Resume";
+
+                    sysText.font = workingFont;
+
+                    sysText.fontSize = 22;
+
+                    sysText.lineSpacing = 1.2f;
+
+                    sysText.alignment = TextAnchor.UpperCenter;
+
+                    sysText.color = new Color(0.9f, 0.9f, 0.9f);
+
+                    sysText.supportRichText = true;
+
+            
+
+                    RectTransform sysRect = sysInfo.GetComponent<RectTransform>();
+
+                    sysRect.anchorMin = new Vector2(0.375f, 0.5f);
+
+                    sysRect.anchorMax = new Vector2(0.625f, 0.7f);
+
+                    sysRect.offsetMin = Vector2.zero; sysRect.offsetMax = Vector2.zero;
+
+            
+
+                    // --- RIGHT COLUMN (SIMULATION) ---
+
+                    GameObject simInfo = new GameObject("InfoSimulation");
+
+                    simInfo.transform.SetParent(pauseMenuObj.transform, false);
+
+                    Text simText = simInfo.AddComponent<Text>();
+
+                    simText.text = "<b>SIMULATION</b>\nS: Run Simulation \nB: Back to Build";
+
+                    simText.font = workingFont;
+
+                    simText.fontSize = 22;
+
+                    simText.lineSpacing = 1.2f;
+
+                    simText.alignment = TextAnchor.UpperCenter;
+
+                    simText.color = new Color(0.9f, 0.9f, 0.9f);
+
+                    simText.supportRichText = true;
+
+            
+
+                    RectTransform simRect = simInfo.GetComponent<RectTransform>();
+
+                    simRect.anchorMin = new Vector2(0.65f, 0.5f);
+
+                    simRect.anchorMax = new Vector2(0.9f, 0.7f);
+
+                    simRect.offsetMin = Vector2.zero; simRect.offsetMax = Vector2.zero;
+
+        // --- RESUME BUTTON ---
+        GameObject resumeBtnObj = new GameObject("BtnResume");
+        resumeBtnObj.transform.SetParent(pauseMenuObj.transform, false);
+        Image resumeImg = resumeBtnObj.AddComponent<Image>();
+        resumeImg.color = new Color(0.2f, 0.8f, 0.2f, 0.3f); // Greenish tint
+        Button resumeBtn = resumeBtnObj.AddComponent<Button>();
+        resumeBtn.targetGraphic = resumeImg;
+        resumeBtn.onClick.AddListener(TogglePauseMenu); // Close menu = Resume
+
+        RectTransform resumeRect = resumeBtnObj.GetComponent<RectTransform>();
+        resumeRect.anchorMin = new Vector2(0.5f, 0.35f);
+        resumeRect.anchorMax = new Vector2(0.5f, 0.35f);
+        resumeRect.sizeDelta = new Vector2(300, 60);
+
+        GameObject resumeTxtObj = new GameObject("Text");
+        resumeTxtObj.transform.SetParent(resumeBtnObj.transform, false);
+        Text resumeTxt = resumeTxtObj.AddComponent<Text>();
+        resumeTxt.text = "RESUME";
+        resumeTxt.font = workingFont;
+        resumeTxt.fontSize = 24;
+        resumeTxt.alignment = TextAnchor.MiddleCenter;
+        resumeTxt.color = Color.white;
+        resumeTxtObj.GetComponent<RectTransform>().anchorMin = Vector2.zero;
+        resumeTxtObj.GetComponent<RectTransform>().anchorMax = Vector2.one;
+        resumeTxtObj.GetComponent<RectTransform>().offsetMin = Vector2.zero;
+        resumeTxtObj.GetComponent<RectTransform>().offsetMax = Vector2.zero;
+
+        // --- CHANGE LEVEL BUTTON (Adjusted Position) ---
+        GameObject btnObj = new GameObject("BtnChangeLevel");
+        btnObj.transform.SetParent(pauseMenuObj.transform, false);
+        Image btnImg = btnObj.AddComponent<Image>();
+        btnImg.color = new Color(1f, 1f, 1f, 0.1f);
+        Button btn = btnObj.AddComponent<Button>();
+        btn.targetGraphic = btnImg;
+        btn.onClick.AddListener(ShowLevelSelect); 
+
+        RectTransform btnRect = btnObj.GetComponent<RectTransform>();
+        btnRect.anchorMin = new Vector2(0.5f, 0.2f);
+        btnRect.anchorMax = new Vector2(0.5f, 0.2f);
+        btnRect.sizeDelta = new Vector2(300, 60);
+
+        GameObject btnTextObj = new GameObject("Text");
+        btnTextObj.transform.SetParent(btnObj.transform, false);
+        Text btnText = btnTextObj.AddComponent<Text>();
+        btnText.text = "CHANGE LEVEL";
+        btnText.font = workingFont;
+        btnText.fontSize = 24;
+        btnText.alignment = TextAnchor.MiddleCenter;
+        btnText.color = Color.yellow;
+        RectTransform btnTextRect = btnTextObj.GetComponent<RectTransform>();
+        btnTextRect.anchorMin = Vector2.zero; btnTextRect.anchorMax = Vector2.one;
+        btnTextRect.offsetMin = Vector2.zero; btnTextRect.offsetMax = Vector2.zero;
+
+        pauseMenuObj.SetActive(false);
+    }
+
+    // Public method for external buttons (Settings/Menu button in Hierarchy)
+    public void OpenPauseMenu()
+    {
+        if (pauseMenuObj != null && !pauseMenuObj.activeSelf)
+        {
+            TogglePauseMenu();
+        }
+    }
+
+    private void SetupLevelSelectMenu()
+    {
+        // Container
+        levelSelectMenuObj = new GameObject("LevelSelectMenu");
+        levelSelectMenuObj.transform.SetParent(canvasObj.transform, false);
+        
+        Image bg = levelSelectMenuObj.AddComponent<Image>();
+        bg.color = new Color(0.05f, 0.05f, 0.1f, 0.98f); 
+        RectTransform rect = levelSelectMenuObj.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero;
+
+        // Title
+        GameObject titleObj = new GameObject("Title");
+        titleObj.transform.SetParent(levelSelectMenuObj.transform, false);
+        Text titleText = titleObj.AddComponent<Text>();
+        titleText.text = "SELECT LEVEL";
+        Font workingFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (workingFont == null) workingFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        titleText.font = workingFont;
+        titleText.fontSize = 50;
+        titleText.alignment = TextAnchor.MiddleCenter;
+        titleText.color = Color.white;
+        titleObj.GetComponent<RectTransform>().anchorMin = new Vector2(0.5f, 0.9f);
+        titleObj.GetComponent<RectTransform>().anchorMax = new Vector2(0.5f, 0.9f);
+        titleObj.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 100);
+
+        // --- SCROLL VIEW SETUP ---
+        GameObject scrollObj = new GameObject("ScrollView");
+        scrollObj.transform.SetParent(levelSelectMenuObj.transform, false);
+        RectTransform scrollRectTransform = scrollObj.AddComponent<RectTransform>();
+        scrollRectTransform.anchorMin = new Vector2(0.1f, 0.15f); // Leave room for Title and Back button
+        scrollRectTransform.anchorMax = new Vector2(0.9f, 0.8f);
+        scrollRectTransform.offsetMin = Vector2.zero;
+        scrollRectTransform.offsetMax = Vector2.zero;
+
+        ScrollRect scrollRect = scrollObj.AddComponent<ScrollRect>();
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.scrollSensitivity = 20f;
+
+        // Viewport (Mask)
+        GameObject viewportObj = new GameObject("Viewport");
+        viewportObj.transform.SetParent(scrollObj.transform, false);
+        RectTransform viewRect = viewportObj.AddComponent<RectTransform>();
+        viewRect.anchorMin = Vector2.zero; viewRect.anchorMax = Vector2.one;
+        viewRect.offsetMin = Vector2.zero; viewRect.offsetMax = Vector2.zero;
+        viewportObj.AddComponent<Mask>().showMaskGraphic = false;
+        Image maskImg = viewportObj.AddComponent<Image>(); // Mask needs an image to work
+        maskImg.color = Color.white; 
+
+        // Content (Grid Holder)
+        GameObject contentObj = new GameObject("Content");
+        contentObj.transform.SetParent(viewportObj.transform, false);
+        RectTransform contentRect = contentObj.AddComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0, 1); 
+        contentRect.anchorMax = new Vector2(1, 1);
+        contentRect.pivot = new Vector2(0.5f, 1);
+        contentRect.sizeDelta = new Vector2(0, 300); // Initial height
+
+        scrollRect.content = contentRect;
+        scrollRect.viewport = viewRect;
+
+        // Grid Layout Group
+        GridLayoutGroup grid = contentObj.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(100, 100);
+        grid.spacing = new Vector2(20, 20);
+        grid.padding = new RectOffset(20, 20, 20, 20);
+        grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+        grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+        grid.childAlignment = TextAnchor.UpperCenter;
+        
+        // Content Size Fitter (Auto-expand height)
+        ContentSizeFitter fitter = contentObj.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        // Generate Buttons
+        if (levelManager != null && levelManager.levels != null)
+        {
+            for (int i = 0; i < levelManager.levels.Count; i++)
+            {
+                int levelIndex = i; // Capture for lambda
+                GameObject lvlBtn = new GameObject($"Level_{i+1}");
+                lvlBtn.transform.SetParent(contentObj.transform, false);
+                
+                Image btnImg = lvlBtn.AddComponent<Image>();
+                btnImg.color = new Color(1f, 1f, 1f, 0.2f);
+                
+                Button btn = lvlBtn.AddComponent<Button>();
+                btn.onClick.AddListener(() => {
+                    SelectLevel(levelIndex);
+                });
+
+                GameObject txtObj = new GameObject("Text");
+                txtObj.transform.SetParent(lvlBtn.transform, false);
+                Text t = txtObj.AddComponent<Text>();
+                t.text = (i + 1).ToString();
+                t.font = workingFont;
+                t.fontSize = 40;
+                t.alignment = TextAnchor.MiddleCenter;
+                t.color = Color.white;
+                txtObj.GetComponent<RectTransform>().anchorMin = Vector2.zero;
+                txtObj.GetComponent<RectTransform>().anchorMax = Vector2.one;
+            }
+        }
+
+        // Back Button (Outside ScrollView)
+        GameObject backBtnObj = new GameObject("BtnBack");
+        backBtnObj.transform.SetParent(levelSelectMenuObj.transform, false);
+        Image backImg = backBtnObj.AddComponent<Image>();
+        backImg.color = new Color(1f, 0.5f, 0.5f, 0.2f);
+        Button backBtn = backBtnObj.AddComponent<Button>();
+        backBtn.onClick.AddListener(HideLevelSelect);
+        
+        RectTransform backRect = backBtnObj.GetComponent<RectTransform>();
+        backRect.anchorMin = new Vector2(0.5f, 0.05f);
+        backRect.anchorMax = new Vector2(0.5f, 0.05f);
+        backRect.sizeDelta = new Vector2(200, 50);
+        backRect.pivot = new Vector2(0.5f, 0);
+
+        GameObject backTxtObj = new GameObject("Text");
+        backTxtObj.transform.SetParent(backBtnObj.transform, false);
+        Text backTxt = backTxtObj.AddComponent<Text>();
+        backTxt.text = "BACK";
+        backTxt.font = workingFont;
+        backTxt.fontSize = 20;
+        backTxt.alignment = TextAnchor.MiddleCenter;
+        backTxt.color = Color.white;
+        backTxtObj.GetComponent<RectTransform>().anchorMin = Vector2.zero;
+        backTxtObj.GetComponent<RectTransform>().anchorMax = Vector2.one;
+
+
+        levelSelectMenuObj.SetActive(false);
+    }
+
+    public void ShowLevelSelect()
+    {
+        if (pauseMenuObj != null) pauseMenuObj.SetActive(false);
+        if (levelSelectMenuObj != null) levelSelectMenuObj.SetActive(true);
+    }
+
+    public void HideLevelSelect()
+    {
+        if (levelSelectMenuObj != null) levelSelectMenuObj.SetActive(false);
+        if (pauseMenuObj != null) pauseMenuObj.SetActive(true);
+    }
+
+    public void SelectLevel(int index)
+    {
+        if (levelManager != null)
+        {
+            levelManager.LoadLevel(index);
+            TogglePauseMenu(); // Close all menus
+        }
+    }
+
+    public void TogglePauseMenu()
+    {
+        // If Level Select is open, close it and strictly close the Pause Menu (Resume Game)
+        if (levelSelectMenuObj != null && levelSelectMenuObj.activeSelf)
+        {
+            levelSelectMenuObj.SetActive(false);
+            pauseMenuObj.SetActive(false);
+            return;
+        }
+
+        if (pauseMenuObj != null)
+        {
+            bool isActive = !pauseMenuObj.activeSelf;
+            pauseMenuObj.SetActive(isActive);
+        }
+    }
+
+    public bool IsPauseMenuOpen()
+    {
+        return (pauseMenuObj != null && pauseMenuObj.activeSelf) || (levelSelectMenuObj != null && levelSelectMenuObj.activeSelf);
     }
 
     public void ShowLevelComplete()
