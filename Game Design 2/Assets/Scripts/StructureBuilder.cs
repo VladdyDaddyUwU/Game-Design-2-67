@@ -80,6 +80,44 @@ public class StructureBuilder : MonoBehaviour
         Vector3 mousePos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
         mousePos.z = 0;
         tempLine.SetPosition(1, mousePos);
+
+        Node endNode = GetNodeUnderMouse();
+
+        if (endNode == null || endNode == startNode)
+        {
+            // Default: Drawing in empty space
+            tempLine.startColor = Color.white;
+            tempLine.endColor = Color.white;
+            return;
+        }
+
+        // Validity Checks for Color Feedback
+        bool isValid = true;
+
+        // 1. Connection to anchor/structure check
+        if (!gameManager.IsNodeConnectedToAnchor(endNode.id) && !gameManager.IsNodeConnectedToAnchor(startNode.id))
+        {
+            isValid = false;
+        }
+        // 2. Duplicate check
+        else if (gameManager.DoesElementExist(startNode.id, endNode.id))
+        {
+            isValid = false;
+        }
+        // 3. Overlap check
+        else if (gameManager.IsNewElementOverlappingExisting(startNode, endNode))
+        {
+            isValid = false;
+        }
+        // 4. Dead Zone Check
+        else if (gameManager.gridController != null && gameManager.gridController.IsSegmentIntersectingDeadZone(startNode.transform.position, endNode.transform.position))
+        {
+            isValid = false;
+        }
+
+        Color feedbackColor = isValid ? Color.green : Color.red;
+        tempLine.startColor = feedbackColor;
+        tempLine.endColor = feedbackColor;
     }
 
     private void FinishDrawing()
@@ -108,6 +146,13 @@ public class StructureBuilder : MonoBehaviour
         if (gameManager.DoesElementExist(startNode.id, endNode.id))
         {
             Debug.LogWarning("This beam already exists.");
+            return;
+        }
+
+        // Dead Zone Check
+        if (gameManager.gridController != null && gameManager.gridController.IsSegmentIntersectingDeadZone(startNode.transform.position, endNode.transform.position))
+        {
+            Debug.LogWarning("Cannot build through the restricted area (Dead Zone).");
             return;
         }
 

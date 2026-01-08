@@ -32,7 +32,7 @@ public class GridController : MonoBehaviour
     private bool isDirty = true;
 
     // Locked grid parameters to ensure stability across repairs/reloads
-    [SerializeField, HideInInspector] private float lockedCellSize = 1f;
+    public float lockedCellSize = 1f;
     [SerializeField, HideInInspector] private float lockedXOffset = 0f;
     [SerializeField, HideInInspector] private float lockedYOffset = 0f;
     [SerializeField, HideInInspector] private int lockedGridWidth = 0;
@@ -210,12 +210,15 @@ public class GridController : MonoBehaviour
                 intersectionPoints[x, y] = new Vector2(xPos, yPos);
                 vertices.Add(new Vector3(xPos, yPos, 0));
 
-                bool cell_bottom_left  = IsCellDestroyed(x - 1, y - 1);
-                bool cell_bottom_right = IsCellDestroyed(x,     y - 1);
-                bool cell_top_left     = IsCellDestroyed(x - 1, y);
-                bool cell_top_right    = IsCellDestroyed(x,     y);
+                // Check if node falls within the "Destroy Zone"
+                // We strictly keep the "Left Wall" (x = gridWidth - destroyWidth)
+                // We strictly keep the "Ceiling" (y = destroyHeight)
+                // We remove everything else inside (x > start) and below (y < height)
+                int startDestroyX = gridWidth - destroyWidth;
+                bool inDestroyX = x > startDestroyX;
+                bool inDestroyY = y < destroyHeight;
 
-                if (cell_bottom_left && cell_bottom_right && cell_top_left && cell_top_right)
+                if (inDestroyX && inDestroyY)
                 {
                     continue;
                 }
@@ -303,4 +306,84 @@ public class GridController : MonoBehaviour
     }
     public int GetGridWidth() => gridWidth;
     public int GetGridHeight() => gridHeight;
+
+    public int GetTargetNodeID()
+    {
+        // Logic: Middle of destroy zone width, immediately above destroy zone height
+        // Since destroy zone is at the far right:
+        // x start = gridWidth - destroyWidth
+        // x center = x start + (destroyWidth / 2)
+        // OR simply: gridWidth - (destroyWidth / 2) - which might be slightly off due to integer division but is consistent.
+        
+        // Let's stick to the user's description: "2nd last node from the right" if width is 2.
+        // If width=2, gridWidth=10. x_start=8. Indices: 8, 9 are destroyed.
+        // We want x=9? Or x=8?
+        // User: "if destroy width is 2, then the node is the 2nd last node from the right"
+        // 2nd last node index is (gridWidth - 1). Last is gridWidth.
+        // Wait, indices go from 0 to gridWidth.
+        // If width=2, destroyed are [gridWidth-1, gridWidth-2] relative to END?
+        // IsCellDestroyed check: x >= gridWidth - destroyWidth
+        // Example: Width=10. Destroy=2.
+        // x >= 8. (8, 9).
+        // 2nd last node from right usually means index 9 (if 10 is max).
+        // "middle of that zone". If zone is 8,9. Middle is 8.5. Integer 8 or 9.
+        // Let's use: gridWidth - (destroyWidth / 2) - 1.
+        // If width=2: 10 - 1 - 1 = 8.
+        // If width=3: 10 - 1 - 1 = 8.
+        
+        // Let's use the exact center logic:
+        int targetX = gridWidth - (destroyWidth / 2);
+        // Ensure it stays within bounds
+        if (targetX > gridWidth) targetX = gridWidth;
+        
+        int targetY = destroyHeight; 
+        
+        // Calculate ID
+        int rowStride = gridWidth + 1;
+        return targetY * rowStride + targetX;
+    }
+
+    public Vector2 GetTargetNodePosition()
+    {
+        int targetX = gridWidth - (destroyWidth / 2);
+        int targetY = destroyHeight;
+        return GetNodePosition(targetX, targetY);
+    }
+
+    public Vector2 GetNodePosition(int x, int y)
+    {
+        float xPos = x * lockedCellSize + lockedXOffset;
+        float yPos = y * lockedCellSize + lockedYOffset;
+        return new Vector2(xPos, yPos);
+    }
+
+    public bool IsSegmentIntersectingDeadZone(Vector2 startWorld, Vector2 endWorld)
+    {
+        if (destroyWidth <= 0 || destroyHeight <= 0) return false;
+
+        float startX = (startWorld.x - lockedXOffset) / lockedCellSize;
+        float startY = (startWorld.y - lockedYOffset) / lockedCellSize;
+        float endX = (endWorld.x - lockedXOffset) / lockedCellSize;
+        float endY = (endWorld.y - lockedYOffset) / lockedCellSize;
+
+        float wallX = gridWidth - destroyWidth;
+        float ceilingY = destroyHeight;
+
+        // Sample points along the line (excluding exact endpoints to allow connecting TO the wall)
+        int steps = 20;
+        for (int i = 1; i < steps; i++)
+        {
+            float t = i / (float)steps;
+            float px = Mathf.Lerp(startX, endX, t);
+            float py = Mathf.Lerp(startY, endY, t);
+
+            // Check if strictly inside the danger zone
+            // Use epsilon to allow grazing the edge
+            if (px > wallX + 0.001f && py < ceilingY - 0.001f)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 }

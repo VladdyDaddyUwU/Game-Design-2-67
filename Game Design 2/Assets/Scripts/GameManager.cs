@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -12,16 +13,27 @@ public class GameManager : MonoBehaviour
     [Header("Component References")]
     public GridController gridController;
     public StructureBuilder structureBuilder;
+    public UIManager uiManager;
     public Transform structureHolder;
+    public Transform elementsHolder;
+
+    [Header("Game Elements")]
+    public GameObject humanPrefab;
+    public GameObject anvilPrefab;
+    public float anvilHangingDistance = 1.5f; // How far below the node the anvil hangs
+    private GameObject humanInstance;
+    private GameObject anvilInstance;
+    private LineRenderer anvilRope;
 
     [Header("Structural Properties")]
     public float youngsModulus = 210e9f;
     public float memberCrossSectionArea = 0.0025f; // 5cm x 5cm
     public float memberYieldStress = 250e6f;
+    public float beamDensity = 7850f; // Density of Steel (kg/m3)
 
     [Header("Simulation Setup")]
     public List<int> anchorNodeIds = new List<int> { 0, 1 }; // Default anchors
-    public int loadNodeId = 6;
+    public int loadNodeId; // Calculated dynamically
     public float loadMass = 40000f;
     public Vector2 gravity = new Vector2(0, -9.81f);
 
@@ -30,6 +42,9 @@ public class GameManager : MonoBehaviour
     private List<Vector2> nodePositions;
     private List<int[]> structuralElements = new List<int[]>();
     private Dictionary<int, List<int>> adjacencyList = new Dictionary<int, List<int>>();
+    
+    private bool isCollapsing = false;
+    private StructuralAnalysis.AnalysisResult lastAnalysisResult;
 
     void Start()
     {
@@ -48,6 +63,16 @@ public class GameManager : MonoBehaviour
         }
 
         if (structureBuilder == null) structureBuilder = FindObjectOfType<StructureBuilder>();
+        if (uiManager == null) 
+        {
+            uiManager = FindObjectOfType<UIManager>();
+            // If still null, create it (it's a utility script)
+            if (uiManager == null)
+            {
+                GameObject uiObj = new GameObject("UIManager");
+                uiManager = uiObj.AddComponent<UIManager>();
+            }
+        }
         
         // InitializeStructure(); // DO NOT CALL THIS HERE - GridController will call it
     }
@@ -63,8 +88,217 @@ public class GameManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.B))
         {
             currentMode = GameMode.Build;
-            // Here you might want to reset the visuals to the pre-simulation state
+            ResetSimulation();
         }
+
+        // Undo Functionality (Z)
+        if (currentMode == GameMode.Build && Input.GetKeyDown(KeyCode.Z))
+        {
+            UndoLastAction();
+        }
+
+        // Restart/Clear Level (R)
+        if (currentMode == GameMode.Build && Input.GetKeyDown(KeyCode.R))
+        {
+            RestartLevel();
+        }
+        
+        if (isCollapsing)
+        {
+            UpdateBeamVisuals();
+            // Also update rope
+            if (anvilRope != null && anvilInstance != null && nodeMap.ContainsKey(loadNodeId))
+            {
+                anvilRope.SetPosition(0, nodeMap[loadNodeId].transform.position);
+                anvilRope.SetPosition(1, anvilInstance.transform.position);
+            }
+        }
+
+        // Visualize Stress Percentages (O)
+        if (Input.GetKey(KeyCode.O))
+        {
+            // If we are in build mode, we calculate on the fly (Predictive)
+            if (currentMode == GameMode.Build)
+            {
+                 lastAnalysisResult = PerformAnalysis();
+            }
+            
+            ShowStressLabels();
+        }
+        else
+        {
+            HideStressLabels();
+        }
+    }
+
+    public void ShowStressLabels()
+    {
+        if (structuralElements == null) return;
+        
+        // If unstable or data is missing, show "UNSTABLE"
+        bool isDataValid = lastAnalysisResult.IsStable && 
+                           lastAnalysisResult.MemberStressPercentages != null && 
+                           lastAnalysisResult.MemberForces != null &&
+                           structuralElements.Count == lastAnalysisResult.MemberStressPercentages.Length;
+
+        for (int i = 0; i < structuralElements.Count; i++)
+        {
+            int[] el = structuralElements[i];
+            int id1 = el[0];
+            int id2 = el[1];
+
+            if (!nodeMap.ContainsKey(id1) || !nodeMap.ContainsKey(id2)) continue;
+
+            Node n1 = nodeMap[id1];
+            Node n2 = nodeMap[id2];
+
+            // Find Visual Beam
+            string name1 = $"Beam({n1.x_index},{n1.y_index})-({n2.x_index},{n2.y_index})";
+            string name2 = $"Beam({n2.x_index},{n2.y_index})-({n1.x_index},{n1.y_index})";
+            
+            Transform beamTransform = structureHolder.Find(name1);
+            if (beamTransform == null) beamTransform = structureHolder.Find(name2);
+
+            if (beamTransform != null)
+            {
+                Transform labelTr = beamTransform.Find("StressLabel");
+                GameObject labelObj;
+                TextMesh tm;
+
+                if (labelTr == null)
+                {
+                    labelObj = new GameObject("StressLabel");
+                    labelObj.transform.SetParent(beamTransform);
+                    tm = labelObj.AddComponent<TextMesh>();
+                    tm.characterSize = 0.05f;
+                    tm.fontSize = 60;
+                    tm.anchor = TextAnchor.MiddleCenter;
+                    tm.alignment = TextAlignment.Center;
+                }
+                else
+                {
+                    labelObj = labelTr.gameObject;
+                    tm = labelObj.GetComponent<TextMesh>();
+                }
+
+                labelObj.SetActive(true);
+                
+                // Positioning logic (always needed)
+                Vector3 p1 = n1.transform.position;
+                Vector3 p2 = n2.transform.position;
+                if (p1.x > p2.x) { Vector3 temp = p1; p1 = p2; p2 = temp; }
+                Vector3 mid = (p1 + p2) / 2f;
+                Vector3 dir = (p2 - p1).normalized;
+                Vector3 normal = new Vector3(-dir.y, dir.x, 0);
+                float offsetDistance = 0.15f;
+                labelObj.transform.position = mid + normal * offsetDistance;
+                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+                labelObj.transform.rotation = Quaternion.Euler(0, 0, angle);
+
+                if (isDataValid)
+                {
+                    float percentage = lastAnalysisResult.MemberStressPercentages[i];
+                    float force = lastAnalysisResult.MemberForces[i];
+
+                    // Visual logic: minus sign for compression
+                    string sign = (force < 0) ? "-" : "";
+                    tm.text = $"{sign}{Mathf.RoundToInt(percentage)}%";
+                    
+                    // Color Code
+                    if (force < 0)
+                    {
+                        tm.color = percentage >= 100f ? Color.red : new Color(1f, 0.4f, 0.4f); 
+                    }
+                    else
+                    {
+                        tm.color = percentage >= 100f ? Color.blue : new Color(0.4f, 0.4f, 1f); 
+                    }
+                }
+                else
+                {
+                    tm.text = "UNSTABLE";
+                    tm.color = Color.red;
+                }
+            }
+        }
+    }
+
+    public void HideStressLabels()
+    {
+        if (structureHolder == null) return;
+        foreach (Transform beam in structureHolder)
+        {
+            Transform label = beam.Find("StressLabel");
+            if (label != null)
+            {
+                label.gameObject.SetActive(false);
+            }
+        }
+    }
+
+    public void UndoLastAction()
+    {
+        if (structuralElements.Count == 0) return;
+
+        // 1. Get the last element added
+        int[] lastElement = structuralElements[structuralElements.Count - 1];
+        int id1 = lastElement[0];
+        int id2 = lastElement[1];
+
+        // 2. Remove from Data (Logic similar to RemoveElement but specific index)
+        structuralElements.RemoveAt(structuralElements.Count - 1);
+        
+        if (adjacencyList.ContainsKey(id1)) adjacencyList[id1].Remove(id2);
+        if (adjacencyList.ContainsKey(id2)) adjacencyList[id2].Remove(id1);
+
+        // 3. Remove Visuals
+        if (structureHolder != null && nodeMap.ContainsKey(id1) && nodeMap.ContainsKey(id2))
+        {
+            Node n1 = nodeMap[id1];
+            Node n2 = nodeMap[id2];
+            
+            // Check both naming possibilities
+            string name1 = $"Beam({n1.x_index},{n1.y_index})-({n2.x_index},{n2.y_index})";
+            string name2 = $"Beam({n2.x_index},{n2.y_index})-({n1.x_index},{n1.y_index})";
+            
+            Transform childToRemove = structureHolder.Find(name1);
+            if (childToRemove == null) childToRemove = structureHolder.Find(name2);
+            
+            if (childToRemove != null)
+            {
+                Destroy(childToRemove.gameObject);
+            }
+            else
+            {
+                Debug.LogWarning($"Undo: Could not find visual for beam {name1} or {name2}");
+            }
+        }
+        
+        Debug.Log("Undo: Removed last beam.");
+    }
+
+    public void RestartLevel()
+    {
+        // 1. Clear Data
+        structuralElements.Clear();
+        adjacencyList.Clear();
+        
+        // Re-initialize adjacency for anchors/nodes (restore base state)
+        foreach (var node in allNodes)
+        {
+            adjacencyList[node.id] = new List<int>();
+        }
+
+        // 2. Clear Visuals
+        if (structureHolder != null)
+        {
+            for (int i = structureHolder.childCount - 1; i >= 0; i--)
+            {
+                Destroy(structureHolder.GetChild(i).gameObject);
+            }
+        }
+
+        Debug.Log("Level Restarted: All beams cleared.");
     }
     
     public void InitializeStructure(GridController sourceGridController = null)
@@ -118,6 +352,23 @@ public class GameManager : MonoBehaviour
                 structureHolder = holderObj.transform;
             }
         }
+        
+        // Manage Elements Holder (Game Elements)
+        if (elementsHolder == null)
+        {
+            var existingHolder = transform.Find("ElementsHolder");
+            if (existingHolder != null)
+            {
+                elementsHolder = existingHolder;
+            }
+            else
+            {
+                var holderObj = new GameObject("ElementsHolder");
+                holderObj.transform.SetParent(this.transform);
+                holderObj.transform.localPosition = Vector3.zero;
+                elementsHolder = holderObj.transform;
+            }
+        }
 
         // Clear existing visuals
         for (int i = structureHolder.childCount - 1; i >= 0; i--)
@@ -140,6 +391,77 @@ public class GameManager : MonoBehaviour
                 node.isAnchor = false;
             }
         }
+
+        SpawnGameElements();
+    }
+
+    public void SpawnGameElements()
+    {
+        // 1. Cleanup old elements - Destroy all children of elementsHolder
+        if (elementsHolder != null)
+        {
+            for (int i = elementsHolder.childCount - 1; i >= 0; i--)
+            {
+                 var child = elementsHolder.GetChild(i);
+                 DestroyImmediate(child.gameObject);
+            }
+        }
+
+        // 2. Calculate Positions
+        int targetNodeID = gridController.GetTargetNodeID();
+        Vector2 targetNodePos = gridController.GetTargetNodePosition();
+        
+        // Human is at the bottom of the same column
+        int targetX = gridController.GetGridWidth() - (gridController.destroyWidth / 2);
+        Vector2 humanPos = gridController.GetNodePosition(targetX, 0); 
+        humanPos += Vector2.up * 0.5f;
+
+        Vector2 anvilPos = targetNodePos + (Vector2.down * anvilHangingDistance);
+
+        // 3. Spawn Human
+        if (humanPrefab != null)
+        {
+            humanInstance = Instantiate(humanPrefab, humanPos, Quaternion.identity);
+        }
+        else
+        {
+            humanInstance = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            humanInstance.transform.position = humanPos;
+            humanInstance.transform.localScale = Vector3.one * 0.5f;
+            humanInstance.GetComponent<Renderer>().material.color = Color.green;
+            humanInstance.name = "Human (Placeholder)";
+        }
+        if (elementsHolder != null) humanInstance.transform.SetParent(elementsHolder);
+
+        // 4. Spawn Anvil
+        if (anvilPrefab != null)
+        {
+            anvilInstance = Instantiate(anvilPrefab, anvilPos, Quaternion.identity);
+        }
+        else
+        {
+            anvilInstance = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            anvilInstance.transform.position = anvilPos;
+            anvilInstance.transform.localScale = Vector3.one * 0.8f;
+            anvilInstance.GetComponent<Renderer>().material.color = Color.black;
+            anvilInstance.name = "Anvil (Placeholder)";
+        }
+        if (elementsHolder != null) anvilInstance.transform.SetParent(elementsHolder);
+        
+        // 5. Draw Rope
+        GameObject ropeObj = new GameObject("AnvilRope");
+        if (elementsHolder != null) ropeObj.transform.SetParent(elementsHolder);
+        
+        anvilRope = ropeObj.AddComponent<LineRenderer>();
+        anvilRope.startWidth = 0.05f;
+        anvilRope.endWidth = 0.05f;
+        anvilRope.positionCount = 2;
+        anvilRope.material = new Material(Shader.Find("Sprites/Default"));
+        anvilRope.startColor = Color.gray;
+        anvilRope.endColor = Color.gray;
+        
+        anvilRope.SetPosition(0, targetNodePos);
+        anvilRope.SetPosition(1, anvilPos);
     }
 
     public void RefreshNodes()
@@ -149,7 +471,6 @@ public class GameManager : MonoBehaviour
         if (newNodes == null || newNodes.Count == 0)
         {
             Debug.LogWarning("RefreshNodes: Node list is empty. Grid might be uninitialized or cleared.");
-            // Do NOT force regeneration here to avoid loops and state corruption.
             return;
         }
 
@@ -183,18 +504,9 @@ public class GameManager : MonoBehaviour
 
     public void RemoveElement(int nodeId1, int nodeId2)
     {
-        // Remove from structuralElements
         structuralElements.RemoveAll(e => (e[0] == nodeId1 && e[1] == nodeId2) || (e[0] == nodeId2 && e[1] == nodeId1));
-
-        // Remove from adjacencyList
-        if (adjacencyList.ContainsKey(nodeId1))
-        {
-            adjacencyList[nodeId1].Remove(nodeId2);
-        }
-        if (adjacencyList.ContainsKey(nodeId2))
-        {
-            adjacencyList[nodeId2].Remove(nodeId1);
-        }
+        if (adjacencyList.ContainsKey(nodeId1)) adjacencyList[nodeId1].Remove(nodeId2);
+        if (adjacencyList.ContainsKey(nodeId2)) adjacencyList[nodeId2].Remove(nodeId1);
     }
 
     public bool DoesElementExist(int nodeId1, int nodeId2)
@@ -216,10 +528,7 @@ public class GameManager : MonoBehaviour
         {
             int currentNodeId = queue.Dequeue();
 
-            if (anchorNodeIds.Contains(currentNodeId))
-            {
-                return true;
-            }
+            if (anchorNodeIds.Contains(currentNodeId)) return true;
 
             if (adjacencyList.ContainsKey(currentNodeId))
             {
@@ -238,22 +547,11 @@ public class GameManager : MonoBehaviour
 
     public bool IsNewElementOverlappingExisting(Node startNode, Node endNode)
     {
-        if (structuralElements == null) 
-        {
-            Debug.LogError("IsNewElementOverlappingExisting: structuralElements is null!");
-            return false;
-        }
-
-        // Ensure map is populated
-        if (nodeMap == null || nodeMap.Count == 0)
-        {
-            RefreshNodes();
-        }
+        if (structuralElements == null) return false;
+        if (nodeMap == null || nodeMap.Count == 0) RefreshNodes();
 
         Vector2Int p1 = new Vector2Int(startNode.x_index, startNode.y_index);
         Vector2Int p2 = new Vector2Int(endNode.x_index, endNode.y_index);
-
-        Debug.Log($"[OverlapCheck] START. New Beam: {startNode.id}-{endNode.id} ({p1}-{p2}). Total Elements: {structuralElements.Count}.");
 
         for (int i = 0; i < structuralElements.Count; i++)
         {
@@ -261,74 +559,45 @@ public class GameManager : MonoBehaviour
             int id1 = element[0];
             int id2 = element[1];
 
-            // Skip the element if it is the one we just added (the self-check)
-            if ((id1 == startNode.id && id2 == endNode.id) || (id1 == endNode.id && id2 == startNode.id))
-            {
-                continue;
-            }
+            if ((id1 == startNode.id && id2 == endNode.id) || (id1 == endNode.id && id2 == startNode.id)) continue;
 
             Node nodeA = null;
             Node nodeB = null;
 
             if (nodeMap.TryGetValue(id1, out nodeA) && nodeMap.TryGetValue(id2, out nodeB))
             {
-                 // Check validity
-                 if (nodeA == null || nodeB == null)
-                 {
-                     // This means the node object was destroyed but the ID is still in our map/list.
-                     // This indicates a state desync, but we should not crash or recurse.
-                     continue;
-                 }
+                 if (nodeA == null || nodeB == null) continue;
 
                 Vector2Int pA = new Vector2Int(nodeA.x_index, nodeA.y_index);
                 Vector2Int pB = new Vector2Int(nodeB.x_index, nodeB.y_index);
 
-                if (DoSegmentsOverlap(p1, p2, pA, pB))
-                {
-                    Debug.Log($"[OverlapCheck] OVERLAP DETECTED at Index {i}!");
-                    return true;
-                }
+                if (DoSegmentsOverlap(p1, p2, pA, pB)) return true;
             }
         }
-        
         return false;
     }
 
     public bool IsElementContained(Node startNode, Node endNode)
     {
-         // Same logic using map
          return IsNewElementOverlappingExisting(startNode, endNode);
     }
 
     private bool DoSegmentsOverlap(Vector2Int p1, Vector2Int p2, Vector2Int a, Vector2Int b)
     {
-        // 1. Check if they are collinear lines.
         long ab_dx = b.x - a.x;
         long ab_dy = b.y - a.y;
-        
         long p1p2_dx = p2.x - p1.x;
         long p1p2_dy = p2.y - p1.y;
-
         long ap1_dx = p1.x - a.x;
         long ap1_dy = p1.y - a.y;
 
-        // Check 1: Are lines AB and P1P2 parallel? Cross product of direction vectors must be 0.
         long parallelCheck = (ab_dx * p1p2_dy) - (ab_dy * p1p2_dx);
-        if (parallelCheck != 0) 
-        {
-            return false;
-        }
+        if (parallelCheck != 0) return false;
 
-        // Check 2: Are lines collinear? Cross product of AB and AP1 must be 0.
         long collinearCheck = (ab_dx * ap1_dy) - (ab_dy * ap1_dx);
-        if (collinearCheck != 0) 
-        {
-            return false;
-        }
+        if (collinearCheck != 0) return false;
 
-        // 3. If collinear, check for 1D interval overlap.
         bool isVertical = (ab_dx == 0);
-
         int min1, max1, min2, max2;
 
         if (!isVertical)
@@ -346,8 +615,7 @@ public class GameManager : MonoBehaviour
             max2 = Mathf.Max(a.y, b.y);
         }
 
-        bool overlaps = (max1 > min2) && (max2 > min1);
-        return overlaps;
+        return (max1 > min2) && (max2 > min1);
     }
 
     public void StartSimulation()
@@ -355,49 +623,417 @@ public class GameManager : MonoBehaviour
         currentMode = GameMode.Simulate;
         Debug.Log("Starting simulation...");
 
-        var fixedNodes = anchorNodeIds;
-        var loads = new Dictionary<int, Vector2>
+        // Hide unconnected nodes
+        foreach (var node in allNodes)
         {
-            { loadNodeId, gravity * loadMass }
-        };
+            bool isConnected = false;
+            if (adjacencyList.ContainsKey(node.id) && adjacencyList[node.id].Count > 0)
+            {
+                isConnected = true;
+            }
+            
+            // Keep anchors visible, keep connected nodes visible. Hide the rest.
+            if (!node.isAnchor && !isConnected)
+            {
+                node.gameObject.SetActive(false);
+            }
+        }
 
-        StructuralAnalysis.AnalysisResult result = StructuralAnalysis.RunAnalysis(
-            nodePositions,
-            structuralElements,
-            fixedNodes,
-            loads,
-            youngsModulus,
-            memberCrossSectionArea,
-            memberYieldStress
-        );
+        StructuralAnalysis.AnalysisResult result = PerformAnalysis();
+        lastAnalysisResult = result;
 
         if (result.IsStable)
         {
             Debug.Log("Structure is STABLE.");
-            ApplyDeformation(result.Displacements);
+            
+            // Re-map active nodes for deformation application
+            // We need to reconstruct the list of active nodes to match the result indices
+            // This is a bit redundant but ensures safety. 
+            // Optimally, PerformAnalysis could return the mapping, but for now we re-derive or pass it.
+            // A simpler way: PerformAnalysis relies on 'allNodes' and 'structuralElements' which are class members.
+            // The mapping logic is deterministic.
+            
+            // Quick reconstruction of the Active Node List used in Analysis
+            // (Copying logic from PerformAnalysis to ensure deformation matches)
+             HashSet<int> activeNodeIDs = new HashSet<int>();
+            foreach (var el in structuralElements) { activeNodeIDs.Add(el[0]); activeNodeIDs.Add(el[1]); }
+            foreach (var anchorID in anchorNodeIds) { if (nodeMap.ContainsKey(anchorID)) activeNodeIDs.Add(anchorID); }
+            if (nodeMap.ContainsKey(loadNodeId)) activeNodeIDs.Add(loadNodeId);
+
+            List<Node> activeNodesList = new List<Node>(); 
+            foreach (int id in activeNodeIDs)
+            {
+                if (nodeMap.TryGetValue(id, out Node node)) activeNodesList.Add(node);
+            }
+            // Sort or iterate consistently? HashSet iteration order is undefined! 
+            // PerformAnalysis used: foreach (int id in activeNodeIDs) ...
+            // WE MUST BE CAREFUL. HashSet order is NOT guaranteed. 
+            // We must change PerformAnalysis to return the node list or enforce sorting.
+            // To fix this without changing the signature too much, let's just use the position list.
+            
+            // actually, let's fix PerformAnalysis first to be deterministic.
+            // ... (See PerformAnalysis implementation below which sorts or uses a list)
+            
+            // Since we split the function, capturing 'activeNodesList' is tricky. 
+            // Let's just recreate it deterministically.
+            var sortedIDs = activeNodeIDs.OrderBy(x => x).ToList(); // Sort by ID for consistency
+            activeNodesList.Clear();
+            List<Vector2> activePositions = new List<Vector2>();
+            
+            foreach (int id in sortedIDs)
+            {
+                if (nodeMap.TryGetValue(id, out Node node))
+                {
+                     activeNodesList.Add(node);
+                     activePositions.Add(node.transform.position);
+                }
+            }
+            
+            foreach (int id in sortedIDs)
+            {
+                if (nodeMap.TryGetValue(id, out Node node))
+                {
+                     activeNodesList.Add(node);
+                     activePositions.Add(node.transform.position);
+                }
+            }
+            
+            float normalizationFactor = gridController.lockedCellSize;
+            ApplyDeformation(activeNodesList, activePositions, result.Displacements, normalizationFactor);
+            
+            bool failed = false;
+            foreach (var stress in result.MemberStressPercentages)
+            {
+                if (stress >= 100f)
+                {
+                    failed = true;
+                    break;
+                }
+            }
+            
+            if (failed)
+            {
+                Debug.LogError("Structure FAILED: Materials yielded/buckled.");
+                CollapseSequence();
+            }
+            else
+            {
+                Debug.Log("SUCCESS: Human Saved!");
+                if (humanInstance != null) 
+                    humanInstance.GetComponent<Renderer>().material.color = Color.blue; 
+                
+                StartCoroutine(LevelCompleteSequence());
+            }
         }
         else
         {
-            Debug.LogError("Structure is UNSTABLE and failed!");
+            Debug.LogError("Structure is UNSTABLE (Mechanism detected)!");
+            CollapseSequence();
         }
 
-        // Visualize results (e.g., color members by stress)
-        // This part would require access to the beam game objects.
-        Debug.Log("Member forces: " + string.Join(", ", result.MemberForces));
-        Debug.Log("Stress percentages: " + string.Join(", ", result.MemberStressPercentages));
+        if (result.MemberForces != null)
+            Debug.Log("Member forces: " + string.Join(", ", result.MemberForces));
+            
+        if (result.MemberStressPercentages != null)
+            Debug.Log("Stress percentages: " + string.Join(", ", result.MemberStressPercentages));
     }
 
-    void ApplyDeformation(Vector2[] displacements, float scale = 1.0f)
+    IEnumerator LevelCompleteSequence()
     {
-        if (displacements == null || displacements.Length != allNodes.Count) return;
+        if (uiManager != null) uiManager.ShowLevelComplete();
+        
+        yield return new WaitForSeconds(3.5f);
+        
+        if (uiManager != null) uiManager.HideLevelComplete();
+        
+        // Return to Build Mode and Clear
+        currentMode = GameMode.Build;
+        ResetSimulation(); // Restore physics state
+        RestartLevel(); // Clear beams
+    }
 
-        for (int i = 0; i < allNodes.Count; i++)
+    public StructuralAnalysis.AnalysisResult PerformAnalysis()
+    {
+        loadNodeId = gridController.GetTargetNodeID();
+
+        // --- PREPARE ANALYSIS DATA ---
+        HashSet<int> activeNodeIDs = new HashSet<int>();
+        
+        // 1. Include nodes connected by beams
+        foreach (var el in structuralElements)
         {
-            Vector3 newPos = nodePositions[i] + displacements[i] * scale;
-            allNodes[i].transform.position = newPos;
+            activeNodeIDs.Add(el[0]);
+            activeNodeIDs.Add(el[1]);
+        }
+        
+        // 2. Include Anchors (must be part of system)
+        foreach (var anchorID in anchorNodeIds)
+        {
+            if (nodeMap.ContainsKey(anchorID)) activeNodeIDs.Add(anchorID);
+        }
+        
+        // 3. Include Load Node
+        if (nodeMap.ContainsKey(loadNodeId)) activeNodeIDs.Add(loadNodeId);
+
+        // Deterministic Sorting to ensure indices match between calls
+        var sortedActiveIDs = activeNodeIDs.OrderBy(x => x).ToList();
+
+        // Build Mapping
+        List<Vector2> activePositions = new List<Vector2>();
+        Dictionary<int, int> idToIndex = new Dictionary<int, int>();
+        
+        int indexCounter = 0;
+        foreach (int id in sortedActiveIDs)
+        {
+            if (nodeMap.TryGetValue(id, out Node node))
+            {
+                activePositions.Add(node.transform.position);
+                idToIndex[id] = indexCounter;
+                indexCounter++;
+            }
+        }
+        
+        // Remap Elements
+        List<int[]> analysisElements = new List<int[]>();
+        foreach (var el in structuralElements)
+        {
+            if (idToIndex.ContainsKey(el[0]) && idToIndex.ContainsKey(el[1]))
+            {
+                analysisElements.Add(new int[] { idToIndex[el[0]], idToIndex[el[1]] });
+            }
         }
 
-        // You would also need to update the LineRenderers for the beams here
-        // This requires a more robust way to track beam game objects.
+        // Remap Anchors
+        List<int> analysisFixedNodes = new List<int>();
+        foreach (var anchorID in anchorNodeIds)
+        {
+            if (idToIndex.ContainsKey(anchorID))
+                analysisFixedNodes.Add(idToIndex[anchorID]);
+        }
+
+        // Remap Loads
+        var analysisLoads = new Dictionary<int, Vector2>();
+        if (idToIndex.ContainsKey(loadNodeId))
+        {
+            analysisLoads.Add(idToIndex[loadNodeId], gravity * loadMass);
+        }
+
+        // --- NORMALIZE COORDINATES ---
+        float normalizationFactor = gridController.lockedCellSize;
+        List<Vector2> normalizedPositions = activePositions.Select(p => p / normalizationFactor).ToList();
+
+        // --- RUN ANALYSIS ---
+        return StructuralAnalysis.RunAnalysis(
+            normalizedPositions,
+            analysisElements,
+            analysisFixedNodes,
+            analysisLoads,
+            youngsModulus,
+            memberCrossSectionArea,
+            memberYieldStress,
+            beamDensity
+        );
+    }
+
+    void ApplyDeformation(List<Node> nodes, List<Vector2> originalPositions, Vector2[] displacements, float scale = 1.0f)
+    {
+        if (displacements == null || nodes.Count != displacements.Length) return;
+
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            Vector3 newPos = originalPositions[i] + displacements[i] * scale;
+            nodes[i].transform.position = newPos;
+        }
+        
+        if (anvilRope != null)
+        {
+            if (nodeMap.ContainsKey(loadNodeId))
+            {
+                anvilRope.SetPosition(0, nodeMap[loadNodeId].transform.position);
+            }
+        }
+        UpdateBeamVisuals();
+    }
+    
+    void UpdateBeamVisuals()
+    {
+        if (structureHolder == null) return;
+        
+        foreach (Transform child in structureHolder)
+        {
+            LineRenderer lr = child.GetComponent<LineRenderer>();
+            if (lr != null)
+            {
+                try 
+                {
+                     string name = child.name;
+                     string[] parts = name.Split('-'); 
+                     if (parts.Length == 2)
+                     {
+                         var p1 = ParseNodeCoords(parts[0].Replace("Beam", ""));
+                         var p2 = ParseNodeCoords(parts[1]);
+                         
+                         Node n1 = allNodes.FirstOrDefault(n => n.x_index == p1.x && n.y_index == p1.y);
+                         Node n2 = allNodes.FirstOrDefault(n => n.x_index == p2.x && n.y_index == p2.y);
+                         
+                         if (n1 != null && n2 != null)
+                         {
+                             lr.SetPosition(0, n1.transform.position);
+                             lr.SetPosition(1, n2.transform.position);
+                         }
+                     }
+                }
+                catch {}
+            }
+        }
+    }
+    
+    Vector2Int ParseNodeCoords(string s)
+    {
+        s = s.Trim('(', ')');
+        var nums = s.Split(',');
+        return new Vector2Int(int.Parse(nums[0]), int.Parse(nums[1]));
+    }
+
+    void CollapseSequence()
+    {
+        if (humanInstance != null) 
+            humanInstance.GetComponent<Renderer>().material.color = Color.red; 
+            
+        Debug.Log("GAME OVER: Structure Collapsing!");
+        isCollapsing = true;
+        EnablePhysicsCollapse();
+    }
+
+    void EnablePhysicsCollapse()
+    {
+        // 1. Convert Nodes to Rigidbodies
+        foreach (var node in allNodes)
+        {
+            Rigidbody2D rb = node.gameObject.GetComponent<Rigidbody2D>();
+            if (rb == null) rb = node.gameObject.AddComponent<Rigidbody2D>();
+            
+            if (node.isAnchor)
+            {
+                rb.bodyType = RigidbodyType2D.Static;
+            }
+            else
+            {
+                rb.bodyType = RigidbodyType2D.Dynamic;
+                rb.mass = 10f; 
+                rb.linearDamping = 1f; // Increased damping to prevent "flying"
+                rb.angularDamping = 1f;
+                rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous; // Prevent tunneling
+                rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+            }
+            
+            // Add collider if missing
+            if (node.gameObject.GetComponent<CircleCollider2D>() == null)
+            {
+                var col = node.gameObject.AddComponent<CircleCollider2D>();
+                col.radius = 0.2f;
+                // Optional: Physics Material with friction could be added here
+            }
+        }
+
+        // 2. Convert Beams to Joints (MATCHING MATH MODEL: DistanceJoints = Pin Joints)
+        foreach (var element in structuralElements)
+        {
+            int id1 = element[0];
+            int id2 = element[1];
+
+            if (nodeMap.TryGetValue(id1, out Node n1) && nodeMap.TryGetValue(id2, out Node n2))
+            {
+                // Use DistanceJoint2D to simulate a Truss member (Rod that can rotate)
+                // This allows mechanisms (like a square) to collapse as expected.
+                DistanceJoint2D joint = n1.gameObject.AddComponent<DistanceJoint2D>();
+                joint.connectedBody = n2.GetComponent<Rigidbody2D>();
+                joint.autoConfigureDistance = true; // Lock exact current distance
+                joint.maxDistanceOnly = false; // Rigid rod behavior (push and pull)
+                
+                // Make it stiff so it acts like steel, not a spring
+                // Setting frequency to 0 makes it a perfectly rigid constraint in Box2D
+                // However, slightly soft (e.g. 100) helps stability. Let's try 0 (Rigid) first for accuracy.
+                // If it explodes, we will use high frequency.
+                // joint.useLimits = false; // Removed as it is not a valid property for DistanceJoint2D
+                
+                joint.enableCollision = false; // Important: Connected nodes shouldn't collide with each other
+            }
+        }
+
+        // 3. Connect Anvil
+        if (anvilInstance != null)
+        {
+            // Remove 3D components first to avoid conflicts
+            var rb3d = anvilInstance.GetComponent<Rigidbody>();
+            if (rb3d != null) DestroyImmediate(rb3d);
+            var col3d = anvilInstance.GetComponent<Collider>();
+            if (col3d != null) DestroyImmediate(col3d);
+
+            Rigidbody2D rb2d = anvilInstance.GetComponent<Rigidbody2D>();
+            if (rb2d == null) rb2d = anvilInstance.AddComponent<Rigidbody2D>();
+            rb2d.mass = 500f; // Heavy!
+            rb2d.linearDamping = 0.5f;
+            rb2d.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            
+            // Add 2D collider so it hits the human
+            if (anvilInstance.GetComponent<BoxCollider2D>() == null)
+                 anvilInstance.AddComponent<BoxCollider2D>();
+            
+            if (nodeMap.TryGetValue(loadNodeId, out Node targetNode))
+            {
+                DistanceJoint2D rope = targetNode.gameObject.AddComponent<DistanceJoint2D>();
+                rope.connectedBody = rb2d;
+                rope.autoConfigureDistance = false;
+                rope.distance = anvilHangingDistance;
+                rope.maxDistanceOnly = true; // Rope behavior (can fold, can't stretch)
+                rope.enableCollision = false;
+            }
+        }
+    }
+    
+    void ResetSimulation()
+    {
+         currentMode = GameMode.Build; // Force Build Mode
+         isCollapsing = false;
+         Debug.Log("Simulation Reset. Back to Build Mode. Undo history preserved.");
+
+         if (nodePositions != null && allNodes != null)
+         {
+             for (int i = 0; i < allNodes.Count; i++)
+             {
+                 Node n = allNodes[i];
+                 n.gameObject.SetActive(true); // Restore visibility
+                 
+                 // Remove physics
+                 var joints = n.GetComponents<Joint2D>();
+                 foreach(var j in joints) Destroy(j);
+                 
+                 var rb = n.GetComponent<Rigidbody2D>();
+                 if (rb != null) Destroy(rb);
+                 
+                 // Collider is kept to allow building interaction
+                 // var col = n.GetComponent<CircleCollider2D>();
+                 // if (col != null) Destroy(col);
+
+                 // Restore Position
+                 if (i < nodePositions.Count)
+                    n.transform.position = nodePositions[i];
+             }
+         }
+         
+         // Fix Anvil
+         if (anvilInstance != null)
+         {
+             var rb2d = anvilInstance.GetComponent<Rigidbody2D>();
+             if (rb2d != null) Destroy(rb2d);
+             // We used 3D primitive which has 3D collider. It's fine for visuals but physics mixed is bad.
+             // For reset, we just respawn.
+         }
+
+         // Force respawn to clean slate
+         SpawnGameElements();
+         
+         UpdateBeamVisuals();
     }
 }
