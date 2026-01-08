@@ -192,15 +192,33 @@ public class GridController : MonoBehaviour
             {
                 float totalScreenHeight_World = Camera.main.orthographicSize * 2;
                 float totalScreenWidth_World = totalScreenHeight_World * Camera.main.aspect;
+                float screenWidth_Pixels = Screen.width;
+                float screenHeight_Pixels = Screen.height;
+                float smallerDimension_Pixels = Mathf.Min(screenWidth_Pixels, screenHeight_Pixels);
                 
-                // Add margins (10% on edges)
-                float margin = 0.1f;
-                float availableWidth_World = totalScreenWidth_World * (1.0f - margin);
-                float availableHeight_World = totalScreenHeight_World * (1.0f - margin);
+                // Restore the specific spacing formula
+                float cutAmount_Pixels = smallerDimension_Pixels / 4f; 
+                float pixelsPerWorldUnit = screenHeight_Pixels / totalScreenHeight_World;
+                float cutAmount_World = cutAmount_Pixels / pixelsPerWorldUnit;
                 
+                // Calculate available space respecting the start offset (cutAmount)
+                float availableWidth_World = totalScreenWidth_World - cutAmount_World;
+                // For height, we subtract the bottom offset. We also might want a bit of top margin, 
+                // but the original formula effectively used (Total - Cut) as the max dimension.
+                // We use the shift factor for the offset, but the available space is usually Total - Offset.
+                // Let's stick to the previous available space logic: Total - Cut.
+                float availableHeight_World = totalScreenHeight_World - (cutAmount_World * gridUpShiftFactor); 
+                // Note: Original code used 'totalScreenHeight_World - cutAmount_World' for calculation, 
+                // but offset by 'cutAmount_World * gridUpShiftFactor'. 
+                // To ensure it stays on screen: Available = Total - BottomOffset. 
+                
+                // Let's stick EXACTLY to the previous logic for available space to be safe, 
+                // assuming the user wants to fit it into that "Total - Cut" box.
+                float availableHeight_ForCalc = totalScreenHeight_World - cutAmount_World;
+
                 // Calculate Cell Size to preserve Square Aspect Ratio
                 float sizeX = availableWidth_World / targetW;
-                float sizeY = availableHeight_World / targetH;
+                float sizeY = availableHeight_ForCalc / targetH;
                 
                 // Use the smaller size to ensure it fits both dimensions
                 lockedCellSize = Mathf.Min(sizeX, sizeY);
@@ -208,12 +226,9 @@ public class GridController : MonoBehaviour
                 gridWidth = targetW;
                 gridHeight = targetH;
                 
-                // Center the grid
-                float gridPixelWidth = gridWidth * lockedCellSize;
-                float gridPixelHeight = gridHeight * lockedCellSize;
-                
-                lockedXOffset = -gridPixelWidth / 2.0f;
-                lockedYOffset = -gridPixelHeight / 2.0f + (totalScreenHeight_World * 0.05f * gridUpShiftFactor); // Slight visual shift up
+                // Position logic using the restored spacing formulas
+                lockedXOffset = -totalScreenWidth_World / 2f + cutAmount_World;
+                lockedYOffset = -totalScreenHeight_World / 2f + (cutAmount_World * gridUpShiftFactor);
             }
             else
             {
