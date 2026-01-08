@@ -378,6 +378,22 @@ public class GameManager : MonoBehaviour
             else DestroyImmediate(child.gameObject);
         }
 
+        // ** LEVEL DATA INTEGRATION **
+        if (gridController.currentLevel != null)
+        {
+            var level = gridController.currentLevel;
+            loadMass = level.loadMass;
+            
+            // Set Anchors from Coords
+            anchorNodeIds.Clear();
+            foreach(var coord in level.anchorCoords)
+            {
+                // Find node ID by coord
+                Node n = allNodes.FirstOrDefault(node => node.x_index == coord.x && node.y_index == coord.y);
+                if (n != null) anchorNodeIds.Add(n.id);
+            }
+        }
+
         // ** CRITICAL: Repopulate the adjacency list and set anchors **
         foreach (var node in allNodes)
         {
@@ -385,10 +401,42 @@ public class GameManager : MonoBehaviour
             if (anchorNodeIds.Contains(node.id))
             {
                 node.isAnchor = true;
+                // Visual feedback for anchors (optional but good)
+                node.GetComponent<Renderer>().material.color = Color.gray; 
             }
             else
             {
                 node.isAnchor = false;
+                node.GetComponent<Renderer>().material.color = Color.white; 
+            }
+        }
+
+        // Spawn Pre-built beams
+        if (gridController.currentLevel != null && gridController.currentLevel.prebuiltBeams != null)
+        {
+            foreach(var beam in gridController.currentLevel.prebuiltBeams)
+            {
+                Node startNode = allNodes.FirstOrDefault(n => n.x_index == beam.start.x && n.y_index == beam.start.y);
+                Node endNode = allNodes.FirstOrDefault(n => n.x_index == beam.end.x && n.y_index == beam.end.y);
+                
+                if (startNode != null && endNode != null)
+                {
+                    // Manually add the element
+                    AddElement(startNode.id, endNode.id);
+                    
+                    // Create Visual
+                    if (structureBuilder != null && structureBuilder.beamPrefab != null)
+                    {
+                         GameObject beamObj = Instantiate(structureBuilder.beamPrefab, Vector3.zero, Quaternion.identity);
+                         beamObj.transform.SetParent(structureHolder);
+                         LineRenderer lr = beamObj.GetComponent<LineRenderer>();
+                         lr.startWidth = 0.05f; 
+                         lr.endWidth = 0.05f;
+                         lr.SetPosition(0, startNode.transform.position);
+                         lr.SetPosition(1, endNode.transform.position);
+                         beamObj.name = $"Beam({startNode.x_index},{startNode.y_index})-({endNode.x_index},{endNode.y_index})";
+                    }
+                }
             }
         }
 

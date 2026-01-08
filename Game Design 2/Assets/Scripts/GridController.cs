@@ -5,6 +5,9 @@ using System.Collections.Generic;
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class GridController : MonoBehaviour
 {
+    [Header("Level Configuration")]
+    public LevelData currentLevel;
+
     [Header("Component References")]
     public GameManager gameManager;
 
@@ -74,6 +77,14 @@ public class GridController : MonoBehaviour
         }
     }
 
+    public void LoadLevel(LevelData level)
+    {
+        currentLevel = level;
+        // Reset play mode initialization so we recalculate for the new level dimensions
+        initializedInPlayMode = false;
+        isDirty = true;
+    }
+
     void Update()
     {
         if (isDirty)
@@ -90,6 +101,25 @@ public class GridController : MonoBehaviour
 
     bool IsCellDestroyed(int x, int y)
     {
+        // 1. Level Data Priority
+        if (currentLevel != null)
+        {
+            if (currentLevel.deadZones != null)
+            {
+                foreach (var zone in currentLevel.deadZones)
+                {
+                    // Check if x,y is inside the rectangle
+                    if (x >= zone.x && x < zone.x + zone.width &&
+                        y >= zone.y && y < zone.y + zone.height)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // 2. Legacy Fallback
         if (x < 0 || y < 0 || x >= gridWidth || y >= gridHeight)
         {
             return false;
@@ -147,39 +177,48 @@ public class GridController : MonoBehaviour
             lockedCellSize = 1f;
             lockedXOffset = 0;
             lockedYOffset = 0;
+            
+            // Determine Target Dimensions
+            int targetW = minSquares;
+            int targetH = minSquares;
+            
+            if (currentLevel != null)
+            {
+                targetW = currentLevel.gridWidth;
+                targetH = currentLevel.gridHeight;
+            }
 
             if (fitToScreen && Camera.main != null)
             {
                 float totalScreenHeight_World = Camera.main.orthographicSize * 2;
                 float totalScreenWidth_World = totalScreenHeight_World * Camera.main.aspect;
-                float screenWidth_Pixels = Screen.width;
-                float screenHeight_Pixels = Screen.height;
-                float smallerDimension_Pixels = Mathf.Min(screenWidth_Pixels, screenHeight_Pixels);
-                float cutAmount_Pixels = smallerDimension_Pixels / 4f;
-                float pixelsPerWorldUnit = screenHeight_Pixels / totalScreenHeight_World;
-                float cutAmount_World = cutAmount_Pixels / pixelsPerWorldUnit;
-                float availableWidth_World = totalScreenWidth_World - cutAmount_World;
-                float availableHeight_World = totalScreenHeight_World - cutAmount_World;
                 
-                if (availableWidth_World >= availableHeight_World)
-                {
-                    gridHeight = minSquares;
-                    lockedCellSize = availableHeight_World / gridHeight;
-                    gridWidth = Mathf.FloorToInt(availableWidth_World / lockedCellSize);
-                }
-                else
-                {
-                    gridWidth = minSquares;
-                    lockedCellSize = availableWidth_World / gridWidth;
-                    gridHeight = Mathf.FloorToInt(availableHeight_World / lockedCellSize);
-                }
-                lockedXOffset = -totalScreenWidth_World / 2f + cutAmount_World;
-                lockedYOffset = -totalScreenHeight_World / 2f + (cutAmount_World * gridUpShiftFactor);
+                // Add margins (10% on edges)
+                float margin = 0.1f;
+                float availableWidth_World = totalScreenWidth_World * (1.0f - margin);
+                float availableHeight_World = totalScreenHeight_World * (1.0f - margin);
+                
+                // Calculate Cell Size to preserve Square Aspect Ratio
+                float sizeX = availableWidth_World / targetW;
+                float sizeY = availableHeight_World / targetH;
+                
+                // Use the smaller size to ensure it fits both dimensions
+                lockedCellSize = Mathf.Min(sizeX, sizeY);
+                
+                gridWidth = targetW;
+                gridHeight = targetH;
+                
+                // Center the grid
+                float gridPixelWidth = gridWidth * lockedCellSize;
+                float gridPixelHeight = gridHeight * lockedCellSize;
+                
+                lockedXOffset = -gridPixelWidth / 2.0f;
+                lockedYOffset = -gridPixelHeight / 2.0f + (totalScreenHeight_World * 0.05f * gridUpShiftFactor); // Slight visual shift up
             }
             else
             {
-                gridWidth = minSquares;
-                gridHeight = minSquares;
+                gridWidth = targetW;
+                gridHeight = targetH;
             }
 
             lockedGridWidth = gridWidth;
@@ -196,6 +235,7 @@ public class GridController : MonoBehaviour
             gridWidth = lockedGridWidth;
             gridHeight = lockedGridHeight;
         }
+
 
         intersectionPoints = new Vector2[gridWidth + 1, gridHeight + 1];
         List<Vector3> vertices = new List<Vector3>();
@@ -309,29 +349,21 @@ public class GridController : MonoBehaviour
 
     public int GetTargetNodeID()
     {
+        // 1. Level Data Priority
+                    if (currentLevel != null)
+                    {
+                        int tX = currentLevel.loadNodeCoords.x;
+                        int tY = currentLevel.loadNodeCoords.y;
+                        // Map coords to ID
+                        int levelRowStride = gridWidth + 1;
+                        return tY * levelRowStride + tX;
+                    }
+        // 2. Fallback Logic
         // Logic: Middle of destroy zone width, immediately above destroy zone height
         // Since destroy zone is at the far right:
         // x start = gridWidth - destroyWidth
         // x center = x start + (destroyWidth / 2)
-        // OR simply: gridWidth - (destroyWidth / 2) - which might be slightly off due to integer division but is consistent.
         
-        // Let's stick to the user's description: "2nd last node from the right" if width is 2.
-        // If width=2, gridWidth=10. x_start=8. Indices: 8, 9 are destroyed.
-        // We want x=9? Or x=8?
-        // User: "if destroy width is 2, then the node is the 2nd last node from the right"
-        // 2nd last node index is (gridWidth - 1). Last is gridWidth.
-        // Wait, indices go from 0 to gridWidth.
-        // If width=2, destroyed are [gridWidth-1, gridWidth-2] relative to END?
-        // IsCellDestroyed check: x >= gridWidth - destroyWidth
-        // Example: Width=10. Destroy=2.
-        // x >= 8. (8, 9).
-        // 2nd last node from right usually means index 9 (if 10 is max).
-        // "middle of that zone". If zone is 8,9. Middle is 8.5. Integer 8 or 9.
-        // Let's use: gridWidth - (destroyWidth / 2) - 1.
-        // If width=2: 10 - 1 - 1 = 8.
-        // If width=3: 10 - 1 - 1 = 8.
-        
-        // Let's use the exact center logic:
         int targetX = gridWidth - (destroyWidth / 2);
         // Ensure it stays within bounds
         if (targetX > gridWidth) targetX = gridWidth;
@@ -345,6 +377,11 @@ public class GridController : MonoBehaviour
 
     public Vector2 GetTargetNodePosition()
     {
+        if (currentLevel != null)
+        {
+            return GetNodePosition(currentLevel.loadNodeCoords.x, currentLevel.loadNodeCoords.y);
+        }
+
         int targetX = gridWidth - (destroyWidth / 2);
         int targetY = destroyHeight;
         return GetNodePosition(targetX, targetY);
@@ -359,23 +396,53 @@ public class GridController : MonoBehaviour
 
     public bool IsSegmentIntersectingDeadZone(Vector2 startWorld, Vector2 endWorld)
     {
+        if (currentLevel != null)
+        {
+            if (currentLevel.deadZones == null || currentLevel.deadZones.Count == 0) return false;
+            
+            float startX = (startWorld.x - lockedXOffset) / lockedCellSize;
+            float startY = (startWorld.y - lockedYOffset) / lockedCellSize;
+            float endX = (endWorld.x - lockedXOffset) / lockedCellSize;
+            float endY = (endWorld.y - lockedYOffset) / lockedCellSize;
+
+            int steps = 20;
+            for (int i = 1; i < steps; i++)
+            {
+                float t = i / (float)steps;
+                float px = Mathf.Lerp(startX, endX, t);
+                float py = Mathf.Lerp(startY, endY, t);
+
+                foreach (var zone in currentLevel.deadZones)
+                {
+                    // Check intersection with epsilon for grazing
+                     if (px > zone.x + 0.001f && px < zone.x + zone.width - 0.001f &&
+                         py > zone.y + 0.001f && py < zone.y + zone.height - 0.001f)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Fallback
         if (destroyWidth <= 0 || destroyHeight <= 0) return false;
 
-        float startX = (startWorld.x - lockedXOffset) / lockedCellSize;
-        float startY = (startWorld.y - lockedYOffset) / lockedCellSize;
-        float endX = (endWorld.x - lockedXOffset) / lockedCellSize;
-        float endY = (endWorld.y - lockedYOffset) / lockedCellSize;
+        float startX_f = (startWorld.x - lockedXOffset) / lockedCellSize;
+        float startY_f = (startWorld.y - lockedYOffset) / lockedCellSize;
+        float endX_f = (endWorld.x - lockedXOffset) / lockedCellSize;
+        float endY_f = (endWorld.y - lockedYOffset) / lockedCellSize;
 
         float wallX = gridWidth - destroyWidth;
         float ceilingY = destroyHeight;
 
         // Sample points along the line (excluding exact endpoints to allow connecting TO the wall)
-        int steps = 20;
-        for (int i = 1; i < steps; i++)
+        int steps_f = 20;
+        for (int i = 1; i < steps_f; i++)
         {
-            float t = i / (float)steps;
-            float px = Mathf.Lerp(startX, endX, t);
-            float py = Mathf.Lerp(startY, endY, t);
+            float t = i / (float)steps_f;
+            float px = Mathf.Lerp(startX_f, endX_f, t);
+            float py = Mathf.Lerp(startY_f, endY_f, t);
 
             // Check if strictly inside the danger zone
             // Use epsilon to allow grazing the edge
