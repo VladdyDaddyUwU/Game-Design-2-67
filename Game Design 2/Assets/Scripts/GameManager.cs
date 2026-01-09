@@ -510,8 +510,17 @@ public class GameManager : MonoBehaviour
         int targetNodeID = gridController.GetTargetNodeID();
         Vector2 targetNodePos = gridController.GetTargetNodePosition();
         
-        // Human is at the bottom of the same column
-        int targetX = gridController.GetGridWidth() - (gridController.destroyWidth / 2);
+        // Human is at the bottom of the same column as the load node
+        int targetX;
+        if (gridController.currentLevel != null)
+        {
+            targetX = gridController.currentLevel.loadNodeCoords.x;
+        }
+        else
+        {
+            // Fallback to legacy behavior if no level data is present
+            targetX = gridController.GetGridWidth() - (gridController.destroyWidth / 2);
+        }
         Vector2 humanPos = gridController.GetNodePosition(targetX, 0); 
         humanPos += Vector2.up * 0.5f;
 
