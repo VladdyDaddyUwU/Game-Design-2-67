@@ -553,36 +553,58 @@ public class GameManager : MonoBehaviour
             // Fallback to legacy behavior if no level data is present
             targetX = gridController.GetGridWidth() - (gridController.destroyWidth / 2);
         }
-        Vector2 humanPos = gridController.GetNodePosition(targetX, 0); 
-        humanPos += Vector2.up * 0.5f;
-
-        Vector2 anvilPos = targetNodePos + (Vector2.down * anvilHangingDistance);
 
         // 3. Spawn Human
+        float hScale = 0.5f;
+        float aScale = 0.8f;
+        
+        if (gridController != null && gridController.currentLevel != null)
+        {
+            hScale = gridController.currentLevel.humanScale;
+            aScale = gridController.currentLevel.anvilScale;
+            this.anvilHangingDistance = gridController.currentLevel.anvilRopeLength;
+        }
+
+        // Adjust Human Pos to sit on the node (Capsule Height is 2 * Scale, Extents is 1 * Scale)
+        Vector2 humanPos = gridController.GetNodePosition(targetX, 0); 
+        humanPos += Vector2.up * hScale;
+
+        // 4. Calculate Anvil Position
+        // Rope hangs down 'anvilHangingDistance'. Anvil attaches at the END of the rope.
+        // If Anvil is a Cube/Prefab, we assume Pivot is Center.
+        // So Center = RopeEnd - (Height/2).
+        Vector2 ropeStartPos = targetNodePos;
+        Vector2 ropeEndPos = targetNodePos + (Vector2.down * anvilHangingDistance);
+        
+        // Assuming uniform scale for height
+        Vector2 anvilPos = ropeEndPos - (Vector2.up * (aScale * 0.5f)); // For Cube (Height 1)
+
         if (humanPrefab != null)
         {
             humanInstance = Instantiate(humanPrefab, humanPos, Quaternion.identity);
+            humanInstance.transform.localScale = Vector3.one * hScale;
         }
         else
         {
             humanInstance = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             humanInstance.transform.position = humanPos;
-            humanInstance.transform.localScale = Vector3.one * 0.5f;
+            humanInstance.transform.localScale = Vector3.one * hScale;
             humanInstance.GetComponent<Renderer>().material.color = Color.green;
             humanInstance.name = "Human (Placeholder)";
         }
         if (elementsHolder != null) humanInstance.transform.SetParent(elementsHolder);
 
-        // 4. Spawn Anvil
+        // Spawn Anvil
         if (anvilPrefab != null)
         {
             anvilInstance = Instantiate(anvilPrefab, anvilPos, Quaternion.identity);
+            anvilInstance.transform.localScale = Vector3.one * aScale;
         }
         else
         {
             anvilInstance = GameObject.CreatePrimitive(PrimitiveType.Cube);
             anvilInstance.transform.position = anvilPos;
-            anvilInstance.transform.localScale = Vector3.one * 0.8f;
+            anvilInstance.transform.localScale = Vector3.one * aScale;
             anvilInstance.GetComponent<Renderer>().material.color = Color.black;
             anvilInstance.name = "Anvil (Placeholder)";
         }
@@ -600,8 +622,8 @@ public class GameManager : MonoBehaviour
         anvilRope.startColor = Color.gray;
         anvilRope.endColor = Color.gray;
         
-        anvilRope.SetPosition(0, targetNodePos);
-        anvilRope.SetPosition(1, anvilPos);
+        anvilRope.SetPosition(0, ropeStartPos);
+        anvilRope.SetPosition(1, ropeEndPos);
     }
 
     public void RefreshNodes()
@@ -1024,11 +1046,19 @@ public class GameManager : MonoBehaviour
             nodes[i].transform.position = newPos;
         }
         
-        if (anvilRope != null)
+        if (anvilRope != null && nodeMap.ContainsKey(loadNodeId))
         {
-            if (nodeMap.ContainsKey(loadNodeId))
+            Vector3 newLoadPos = nodeMap[loadNodeId].transform.position;
+            Vector3 ropeEndPos = newLoadPos + (Vector3.down * anvilHangingDistance);
+            
+            anvilRope.SetPosition(0, newLoadPos);
+            anvilRope.SetPosition(1, ropeEndPos);
+            
+            if (anvilInstance != null)
             {
-                anvilRope.SetPosition(0, nodeMap[loadNodeId].transform.position);
+                // Re-calculate offset based on current scale
+                float currentAScale = anvilInstance.transform.localScale.y; // Assuming uniform/y-scale
+                anvilInstance.transform.position = ropeEndPos - (Vector3.up * (currentAScale * 0.5f));
             }
         }
         UpdateBeamVisuals();
@@ -1261,8 +1291,8 @@ public class GameManager : MonoBehaviour
             {
                 DistanceJoint2D rope = targetNode.gameObject.AddComponent<DistanceJoint2D>();
                 rope.connectedBody = rb2d;
-                rope.autoConfigureDistance = false;
-                rope.distance = anvilHangingDistance;
+                rope.autoConfigureDistance = true; // Automatically lock current distance (visual match)
+                // rope.distance = ... ; 
                 rope.maxDistanceOnly = true; // Rope behavior (can fold, can't stretch)
                 rope.enableCollision = false;
             }

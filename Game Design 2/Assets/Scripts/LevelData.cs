@@ -16,6 +16,15 @@ public class LevelData : ScriptableObject
     [Tooltip("Amount of material available for this level (in meters)")]
     public float maxMaterialLength = 20.0f;
 
+    [Tooltip("Scale of the human character")]
+    public float humanScale = 0.5f;
+
+    [Tooltip("Scale of the anvil weight")]
+    public float anvilScale = 0.8f;
+
+    [Tooltip("Length of the rope holding the anvil")]
+    public float anvilRopeLength = 1.5f;
+
     [Tooltip("Coordinates of the Anchor Nodes (Triangle supports)")]
     public List<Vector2Int> anchorCoords = new List<Vector2Int>();
 
