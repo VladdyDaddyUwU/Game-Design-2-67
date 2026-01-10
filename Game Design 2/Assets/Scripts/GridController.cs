@@ -281,17 +281,20 @@ public class GridController : MonoBehaviour
                 intersectionPoints[x, y] = new Vector2(xPos, yPos);
                 vertices.Add(new Vector3(xPos, yPos, 0));
 
-                // Check if node falls within the "Destroy Zone"
-                // We strictly keep the "Left Wall" (x = gridWidth - destroyWidth)
-                // We strictly keep the "Ceiling" (y = destroyHeight)
-                // We remove everything else inside (x > start) and below (y < height)
-                int startDestroyX = gridWidth - destroyWidth;
-                bool inDestroyX = x > startDestroyX;
-                bool inDestroyY = y < destroyHeight;
-
-                if (inDestroyX && inDestroyY)
+                // Check if node falls within the "Destroy Zone" (Legacy Fallback)
+                if (currentLevel == null)
                 {
-                    continue;
+                    // We strictly keep the "Left Wall" (x = gridWidth - destroyWidth)
+                    // We strictly keep the "Ceiling" (y = destroyHeight)
+                    // We remove everything else inside (x > start) and below (y < height)
+                    int startDestroyX = gridWidth - destroyWidth;
+                    bool inDestroyX = x > startDestroyX;
+                    bool inDestroyY = y < destroyHeight;
+
+                    if (inDestroyX && inDestroyY)
+                    {
+                        continue;
+                    }
                 }
                 
                 // Check new Dead Zone Logic (Nodes strictly inside should not be created)
