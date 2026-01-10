@@ -15,14 +15,21 @@ MonoBehaviour:
   gridWidth: 14
   gridHeight: 7
   maxMaterialLength: 20
+  humanScale: 0.4
+  anvilScale: 0.5
+  anvilRopeLength: 0.5
   anchorCoords:
   - {x: 0, y: 0}
   - {x: 1, y: 0}
+  - {x: 7, y: 0}
+  - {x: 6, y: 0}
+  - {x: 8, y: 0}
+  - {x: 9, y: 0}
   loadNodeCoords: {x: 11, y: 3}
-  loadMass: 20000
+  loadMass: 10000
   deadZones:
-  - x: 8
+  - x: 10
     y: -1
-    width: 7
+    width: 5
     height: 4
   prebuiltBeams: []
