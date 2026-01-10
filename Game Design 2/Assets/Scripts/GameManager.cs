@@ -297,6 +297,9 @@ public class GameManager : MonoBehaviour
         
         if (adjacencyList.ContainsKey(id1)) adjacencyList[id1].Remove(id2);
         if (adjacencyList.ContainsKey(id2)) adjacencyList[id2].Remove(id1);
+        
+        UpdateNodeColor(id1);
+        UpdateNodeColor(id2);
 
         // 3. Remove Visuals
         if (structureHolder != null && nodeMap.ContainsKey(id1) && nodeMap.ContainsKey(id2))
@@ -361,6 +364,12 @@ public class GameManager : MonoBehaviour
         if (structuralElements.Count > prebuiltElementCount)
         {
             structuralElements.RemoveRange(prebuiltElementCount, structuralElements.Count - prebuiltElementCount);
+        }
+        
+        // Refresh all node colors
+        foreach(var node in allNodes)
+        {
+            UpdateNodeColor(node.id);
         }
 
         Debug.Log("Level Restarted: Player beams cleared, pre-built preserved.");
@@ -630,6 +639,9 @@ public class GameManager : MonoBehaviour
         if (!adjacencyList.ContainsKey(nodeId2)) adjacencyList[nodeId2] = new List<int>();
         adjacencyList[nodeId1].Add(nodeId2);
         adjacencyList[nodeId2].Add(nodeId1);
+        
+        UpdateNodeColor(nodeId1);
+        UpdateNodeColor(nodeId2);
     }
 
     public void RemoveElement(int nodeId1, int nodeId2)
@@ -637,6 +649,28 @@ public class GameManager : MonoBehaviour
         structuralElements.RemoveAll(e => (e[0] == nodeId1 && e[1] == nodeId2) || (e[0] == nodeId2 && e[1] == nodeId1));
         if (adjacencyList.ContainsKey(nodeId1)) adjacencyList[nodeId1].Remove(nodeId2);
         if (adjacencyList.ContainsKey(nodeId2)) adjacencyList[nodeId2].Remove(nodeId1);
+        
+        UpdateNodeColor(nodeId1);
+        UpdateNodeColor(nodeId2);
+    }
+
+    void UpdateNodeColor(int nodeId)
+    {
+        if (nodeMap.TryGetValue(nodeId, out Node n))
+        {
+            Renderer r = n.GetComponent<Renderer>();
+            if (r == null) return;
+
+            if (n.isAnchor)
+            {
+                r.material.color = Color.gray;
+            }
+            else
+            {
+                bool isConnected = adjacencyList.ContainsKey(nodeId) && adjacencyList[nodeId].Count > 0;
+                r.material.color = isConnected ? Color.black : Color.white;
+            }
+        }
     }
 
     public bool DoesElementExist(int nodeId1, int nodeId2)
@@ -832,7 +866,8 @@ public class GameManager : MonoBehaviour
             ApplyDeformation(activeNodesList, activePositions, result.Displacements, normalizationFactor);
             
             bool failed = false;
-            List<int> failedElementIndices = new List<int>();
+            List<int> snappedIndices = new List<int>();
+            List<int> buckledIndices = new List<int>();
             if (result.MemberStressPercentages != null)
             {
                 for (int i = 0; i < result.MemberStressPercentages.Length; i++)
@@ -840,7 +875,16 @@ public class GameManager : MonoBehaviour
                     if (result.MemberStressPercentages[i] >= 100f)
                     {
                         failed = true;
-                        failedElementIndices.Add(i);
+                        // Determine if failure is Buckling (Compression) or Snapping (Tension)
+                        // In StructuralAnalysis, positive force is tension, negative is compression.
+                        if (result.MemberForces[i] < 0)
+                        {
+                            buckledIndices.Add(i);
+                        }
+                        else
+                        {
+                            snappedIndices.Add(i);
+                        }
                     }
                 }
             }
@@ -848,7 +892,7 @@ public class GameManager : MonoBehaviour
             if (failed)
             {
                 Debug.LogError("Structure FAILED: Materials yielded/buckled.");
-                CollapseSequence(failedElementIndices);
+                CollapseSequence(snappedIndices, buckledIndices);
             }
             else
             {
@@ -862,7 +906,7 @@ public class GameManager : MonoBehaviour
         else
         {
             Debug.LogError("Structure is UNSTABLE (Mechanism detected)!");
-            CollapseSequence(new List<int>()); // No broken beams, just general instability
+            CollapseSequence(new List<int>(), new List<int>()); // No broken beams, just general instability
         }
 
         if (result.MemberForces != null)
@@ -1029,14 +1073,14 @@ public class GameManager : MonoBehaviour
         return new Vector2Int(int.Parse(nums[0]), int.Parse(nums[1]));
     }
 
-    void CollapseSequence(List<int> failedElementIndices = null)
+    void CollapseSequence(List<int> snappedIndices = null, List<int> buckledIndices = null)
     {
         if (humanInstance != null) 
             humanInstance.GetComponent<Renderer>().material.color = Color.red; 
             
         Debug.Log("GAME OVER: Structure Collapsing!");
         isCollapsing = true;
-        EnablePhysicsCollapse(failedElementIndices);
+        EnablePhysicsCollapse(snappedIndices, buckledIndices);
     }
 
     private void CreateBrokenBeamVisual(Transform t1, Transform t2)
@@ -1045,8 +1089,12 @@ public class GameManager : MonoBehaviour
         brokenParts.Add(obj);
         
         LineRenderer lr = obj.AddComponent<LineRenderer>();
-        lr.startWidth = 0.05f; 
-        lr.endWidth = 0.05f;
+        
+        float width = 0.05f;
+        if (structureBuilder != null) width = structureBuilder.beamWidth;
+        lr.startWidth = width; 
+        lr.endWidth = width;
+        
         lr.positionCount = 2;
         // Basic material
         if (structureBuilder != null && structureBuilder.beamPrefab != null)
@@ -1064,7 +1112,7 @@ public class GameManager : MonoBehaviour
         brokenBeamVisuals.Add(new BrokenBeamVisual { lr = lr, t1 = t1, t2 = t2 });
     }
 
-    void EnablePhysicsCollapse(List<int> failedElementIndices)
+    void EnablePhysicsCollapse(List<int> snappedIndices, List<int> buckledIndices)
     {
         // 1. Convert Nodes to Rigidbodies
         foreach (var node in allNodes)
@@ -1094,8 +1142,9 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // 2. Process Beams (Normal vs Snapped)
-        if (failedElementIndices == null) failedElementIndices = new List<int>();
+        // 2. Process Beams (Normal, Snapped, Buckled)
+        if (snappedIndices == null) snappedIndices = new List<int>();
+        if (buckledIndices == null) buckledIndices = new List<int>();
 
         for (int i = 0; i < structuralElements.Count; i++)
         {
@@ -1105,65 +1154,71 @@ public class GameManager : MonoBehaviour
 
             if (nodeMap.TryGetValue(id1, out Node n1) && nodeMap.TryGetValue(id2, out Node n2))
             {
-                // Check if this specific beam failed
-                if (failedElementIndices.Contains(i))
+                if (snappedIndices.Contains(i))
                 {
-                    // --- BEAM SNAP LOGIC ---
+                    // --- SNAP LOGIC (TENSION) ---
                     Debug.Log($"Snapping beam between {id1} and {id2}");
 
-                    // 1. Hide original visual
-                    string name1 = $"Beam({n1.x_index},{n1.y_index})-({n2.x_index},{n2.y_index})";
-                    string name2 = $"Beam({n2.x_index},{n2.y_index})-({n1.x_index},{n1.y_index})";
-                    Transform beamT = structureHolder.Find(name1);
-                    if (beamT == null) beamT = structureHolder.Find(name2);
-                    if (beamT != null) beamT.gameObject.SetActive(false); // Hide it
+                    // Hide original
+                    HideOriginalBeamVisual(n1, n2);
 
-                    // 2. Create Split Nodes
+                    // Create Split Nodes
                     Vector3 midPoint = (n1.transform.position + n2.transform.position) / 2f;
                     
                     GameObject nodeM1 = Instantiate(gridController.nodePrefab, midPoint, Quaternion.identity);
                     GameObject nodeM2 = Instantiate(gridController.nodePrefab, midPoint, Quaternion.identity);
-                    
                     nodeM1.transform.localScale = Vector3.one * gridController.nodeScale;
                     nodeM2.transform.localScale = Vector3.one * gridController.nodeScale;
+                    brokenParts.Add(nodeM1); brokenParts.Add(nodeM2);
 
-                    brokenParts.Add(nodeM1);
-                    brokenParts.Add(nodeM2);
-
-                    // Add Physics to new nodes
                     Rigidbody2D rbM1 = nodeM1.AddComponent<Rigidbody2D>();
                     Rigidbody2D rbM2 = nodeM2.AddComponent<Rigidbody2D>();
                     rbM1.mass = 5f; rbM2.mass = 5f;
                     
-                    // 3. Create Joints for the two halves
-                    // Half 1: N1 <-> M1
-                    DistanceJoint2D j1 = n1.gameObject.AddComponent<DistanceJoint2D>();
-                    j1.connectedBody = rbM1;
-                    j1.autoConfigureDistance = false;
-                    j1.distance = Vector2.Distance(n1.transform.position, midPoint);
-                    j1.maxDistanceOnly = false;
-
-                    // Half 2: N2 <-> M2
-                    DistanceJoint2D j2 = n2.gameObject.AddComponent<DistanceJoint2D>();
-                    j2.connectedBody = rbM2;
-                    j2.autoConfigureDistance = false;
-                    j2.distance = Vector2.Distance(n2.transform.position, midPoint);
-                    j2.maxDistanceOnly = false;
+                    // Joints
+                    CreateDistanceJoint(n1.gameObject, rbM1, Vector2.Distance(n1.transform.position, midPoint));
+                    CreateDistanceJoint(n2.gameObject, rbM2, Vector2.Distance(n2.transform.position, midPoint));
                     
-                    // 4. Create Visuals for the two halves
-                    // We need a way to draw them. Create simple GameObjects with LineRenderer.
+                    // Visuals
                     CreateBrokenBeamVisual(n1.transform, nodeM1.transform);
                     CreateBrokenBeamVisual(n2.transform, nodeM2.transform);
+                }
+                else if (buckledIndices.Contains(i))
+                {
+                    // --- BUCKLE LOGIC (COMPRESSION) ---
+                    Debug.Log($"Buckling beam between {id1} and {id2}");
+
+                    // Hide original
+                    HideOriginalBeamVisual(n1, n2);
+
+                    // Create ONE Mid Node (Hinge)
+                    Vector3 midPoint = (n1.transform.position + n2.transform.position) / 2f;
+                    
+                    GameObject nodeM = Instantiate(gridController.nodePrefab, midPoint, Quaternion.identity);
+                    nodeM.transform.localScale = Vector3.one * gridController.nodeScale;
+                    brokenParts.Add(nodeM);
+
+                    Rigidbody2D rbM = nodeM.AddComponent<Rigidbody2D>();
+                    rbM.mass = 5f;
+                    // Optional: Add drag to simulate bending resistance or keep it loose for sudden collapse
+                    rbM.linearDamping = 0.5f;
+
+                    // Joints (Connected to SAME middle node)
+                    CreateDistanceJoint(n1.gameObject, rbM, Vector2.Distance(n1.transform.position, midPoint));
+                    CreateDistanceJoint(n2.gameObject, rbM, Vector2.Distance(n2.transform.position, midPoint));
+
+                    // Visuals
+                    CreateBrokenBeamVisual(n1.transform, nodeM.transform);
+                    CreateBrokenBeamVisual(n2.transform, nodeM.transform);
                 }
                 else
                 {
                     // --- NORMAL BEAM LOGIC ---
-                    // Use DistanceJoint2D to simulate a Truss member (Rod that can rotate)
                     DistanceJoint2D joint = n1.gameObject.AddComponent<DistanceJoint2D>();
                     joint.connectedBody = n2.GetComponent<Rigidbody2D>();
-                    joint.autoConfigureDistance = true; // Lock exact current distance
-                    joint.maxDistanceOnly = false; // Rigid rod behavior (push and pull)
-                    joint.enableCollision = false; // Important: Connected nodes shouldn't collide with each other
+                    joint.autoConfigureDistance = true; 
+                    joint.maxDistanceOnly = false; 
+                    joint.enableCollision = false; 
                 }
             }
         }
@@ -1197,6 +1252,24 @@ public class GameManager : MonoBehaviour
                 rope.enableCollision = false;
             }
         }
+    }
+
+    private void HideOriginalBeamVisual(Node n1, Node n2)
+    {
+        string name1 = $"Beam({n1.x_index},{n1.y_index})-({n2.x_index},{n2.y_index})";
+        string name2 = $"Beam({n2.x_index},{n2.y_index})-({n1.x_index},{n1.y_index})";
+        Transform beamT = structureHolder.Find(name1);
+        if (beamT == null) beamT = structureHolder.Find(name2);
+        if (beamT != null) beamT.gameObject.SetActive(false); 
+    }
+
+    private void CreateDistanceJoint(GameObject obj, Rigidbody2D targetRb, float dist)
+    {
+        DistanceJoint2D j = obj.AddComponent<DistanceJoint2D>();
+        j.connectedBody = targetRb;
+        j.autoConfigureDistance = false;
+        j.distance = dist;
+        j.maxDistanceOnly = false;
     }
     
     void ResetSimulation()
