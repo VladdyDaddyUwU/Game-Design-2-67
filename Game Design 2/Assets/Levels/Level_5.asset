@@ -15,16 +15,19 @@ MonoBehaviour:
   gridWidth: 3
   gridHeight: 3
   maxMaterialLength: 20
+  humanScale: 0.5
+  anvilScale: 0.8
+  anvilRopeLength: 1.5
   anchorCoords:
   - {x: 0, y: 2}
   - {x: 0, y: 3}
   loadNodeCoords: {x: 2, y: 2}
-  loadMass: 10000
+  loadMass: 30000
   deadZones:
-  - x: 0
-    y: 0
-    width: 2
-    height: 2
+  - x: -1
+    y: -1
+    width: 5
+    height: 3
   prebuiltBeams:
   - start: {x: 0, y: 2}
     end: {x: 1, y: 2}

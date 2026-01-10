@@ -12,17 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2228fd33872feea429386c74dca8b01f, type: 3}
   m_Name: Level_10
   m_EditorClassIdentifier: 
-  gridWidth: 5
+  gridWidth: 4
   gridHeight: 4
   maxMaterialLength: 20
+  humanScale: 0.5
+  anvilScale: 0.8
+  anvilRopeLength: 0.7
   anchorCoords:
   - {x: 0, y: 0}
   - {x: 2, y: 0}
   loadNodeCoords: {x: 4, y: 2}
-  loadMass: 10000
+  loadMass: 3000
   deadZones:
   - x: 2
-    y: 0
-    width: 2
-    height: 2
+    y: -1
+    width: 3
+    height: 3
   prebuiltBeams: []
