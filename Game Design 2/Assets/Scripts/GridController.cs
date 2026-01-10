@@ -127,6 +127,22 @@ public class GridController : MonoBehaviour
         return x >= gridWidth - destroyWidth && y < destroyHeight;
     }
 
+    bool IsNodeInsideDeadZone(int x, int y)
+    {
+        if (currentLevel != null && currentLevel.deadZones != null)
+        {
+            foreach (var zone in currentLevel.deadZones)
+            {
+                if (x > zone.x && x < zone.x + zone.width &&
+                    y > zone.y && y < zone.y + zone.height)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public void GenerateGrid()
     {
         if (nodeHolder == null)
@@ -274,6 +290,12 @@ public class GridController : MonoBehaviour
                 bool inDestroyY = y < destroyHeight;
 
                 if (inDestroyX && inDestroyY)
+                {
+                    continue;
+                }
+                
+                // Check new Dead Zone Logic (Nodes strictly inside should not be created)
+                if (IsNodeInsideDeadZone(x, y))
                 {
                     continue;
                 }

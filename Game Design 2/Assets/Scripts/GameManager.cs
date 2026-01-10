@@ -55,6 +55,7 @@ public class GameManager : MonoBehaviour
         public Transform t2;
     }
     private List<BrokenBeamVisual> brokenBeamVisuals = new List<BrokenBeamVisual>();
+    private float storedNodeRadius = -1f;
 
     void Start()
     {
@@ -1135,11 +1136,16 @@ public class GameManager : MonoBehaviour
             }
             
             // Add collider if missing
-            if (node.gameObject.GetComponent<CircleCollider2D>() == null)
+            CircleCollider2D col = node.gameObject.GetComponent<CircleCollider2D>();
+            if (col == null)
             {
-                var col = node.gameObject.AddComponent<CircleCollider2D>();
+                col = node.gameObject.AddComponent<CircleCollider2D>();
                 col.radius = 0.2f;
             }
+            
+            // Shrink collider for simulation physics (Pin Joint approximation)
+            if (storedNodeRadius == -1f) storedNodeRadius = col.radius;
+            col.radius = 0.1f;
         }
 
         // 2. Process Beams (Normal, Snapped, Buckled)
@@ -1169,6 +1175,11 @@ public class GameManager : MonoBehaviour
                     GameObject nodeM2 = Instantiate(gridController.nodePrefab, midPoint, Quaternion.identity);
                     nodeM1.transform.localScale = Vector3.one * gridController.nodeScale;
                     nodeM2.transform.localScale = Vector3.one * gridController.nodeScale;
+                    
+                    // Shrink new nodes too
+                    if (nodeM1.GetComponent<CircleCollider2D>() != null) nodeM1.GetComponent<CircleCollider2D>().radius = 0.1f;
+                    if (nodeM2.GetComponent<CircleCollider2D>() != null) nodeM2.GetComponent<CircleCollider2D>().radius = 0.1f;
+
                     brokenParts.Add(nodeM1); brokenParts.Add(nodeM2);
 
                     Rigidbody2D rbM1 = nodeM1.AddComponent<Rigidbody2D>();
@@ -1196,6 +1207,10 @@ public class GameManager : MonoBehaviour
                     
                     GameObject nodeM = Instantiate(gridController.nodePrefab, midPoint, Quaternion.identity);
                     nodeM.transform.localScale = Vector3.one * gridController.nodeScale;
+                    
+                    // Shrink new node
+                    if (nodeM.GetComponent<CircleCollider2D>() != null) nodeM.GetComponent<CircleCollider2D>().radius = 0.1f;
+
                     brokenParts.Add(nodeM);
 
                     Rigidbody2D rbM = nodeM.AddComponent<Rigidbody2D>();
@@ -1302,6 +1317,13 @@ public class GameManager : MonoBehaviour
                  Node n = allNodes[i];
                  n.gameObject.SetActive(true); // Restore visibility
                  
+                 // Restore Collider Size
+                 if (storedNodeRadius != -1f)
+                 {
+                     var col = n.GetComponent<CircleCollider2D>();
+                     if (col != null) col.radius = storedNodeRadius;
+                 }
+
                  // Remove physics
                  var joints = n.GetComponents<Joint2D>();
                  foreach(var j in joints) Destroy(j);
@@ -1318,6 +1340,8 @@ public class GameManager : MonoBehaviour
                     n.transform.position = nodePositions[i];
              }
          }
+         
+         storedNodeRadius = -1f;
          
          // Fix Anvil
          if (anvilInstance != null)

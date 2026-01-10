@@ -12,17 +12,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2228fd33872feea429386c74dca8b01f, type: 3}
   m_Name: Level_11
   m_EditorClassIdentifier: 
-  gridWidth: 5
-  gridHeight: 5
+  gridWidth: 14
+  gridHeight: 7
   maxMaterialLength: 20
   anchorCoords:
   - {x: 0, y: 0}
   - {x: 1, y: 0}
-  loadNodeCoords: {x: 4, y: 2}
+  loadNodeCoords: {x: 11, y: 3}
   loadMass: 20000
   deadZones:
-  - x: 3
-    y: 0
-    width: 5
-    height: 2
+  - x: 8
+    y: -1
+    width: 7
+    height: 4
   prebuiltBeams: []
