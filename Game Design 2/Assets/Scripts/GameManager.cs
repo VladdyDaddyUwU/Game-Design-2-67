@@ -47,6 +47,15 @@ public class GameManager : MonoBehaviour
     private StructuralAnalysis.AnalysisResult lastAnalysisResult;
     private int prebuiltElementCount = 0; // Track how many elements are permanent
 
+    // Tracking for broken parts
+    private List<GameObject> brokenParts = new List<GameObject>();
+    private class BrokenBeamVisual {
+        public LineRenderer lr;
+        public Transform t1;
+        public Transform t2;
+    }
+    private List<BrokenBeamVisual> brokenBeamVisuals = new List<BrokenBeamVisual>();
+
     void Start()
     {
         if (gridController == null)
@@ -124,6 +133,7 @@ public class GameManager : MonoBehaviour
         if (isCollapsing)
         {
             UpdateBeamVisuals();
+            UpdateBrokenBeams(); // Update the visuals for snapped beams
             // Also update rope
             if (anvilRope != null && anvilInstance != null && nodeMap.ContainsKey(loadNodeId))
             {
@@ -146,6 +156,18 @@ public class GameManager : MonoBehaviour
         else
         {
             HideStressLabels();
+        }
+    }
+
+    private void UpdateBrokenBeams()
+    {
+        foreach(var visual in brokenBeamVisuals)
+        {
+            if (visual.lr != null && visual.t1 != null && visual.t2 != null)
+            {
+                visual.lr.SetPosition(0, visual.t1.position);
+                visual.lr.SetPosition(1, visual.t2.position);
+            }
         }
     }
 
@@ -810,19 +832,23 @@ public class GameManager : MonoBehaviour
             ApplyDeformation(activeNodesList, activePositions, result.Displacements, normalizationFactor);
             
             bool failed = false;
-            foreach (var stress in result.MemberStressPercentages)
+            List<int> failedElementIndices = new List<int>();
+            if (result.MemberStressPercentages != null)
             {
-                if (stress >= 100f)
+                for (int i = 0; i < result.MemberStressPercentages.Length; i++)
                 {
-                    failed = true;
-                    break;
+                    if (result.MemberStressPercentages[i] >= 100f)
+                    {
+                        failed = true;
+                        failedElementIndices.Add(i);
+                    }
                 }
             }
             
             if (failed)
             {
                 Debug.LogError("Structure FAILED: Materials yielded/buckled.");
-                CollapseSequence();
+                CollapseSequence(failedElementIndices);
             }
             else
             {
@@ -836,7 +862,7 @@ public class GameManager : MonoBehaviour
         else
         {
             Debug.LogError("Structure is UNSTABLE (Mechanism detected)!");
-            CollapseSequence();
+            CollapseSequence(new List<int>()); // No broken beams, just general instability
         }
 
         if (result.MemberForces != null)
@@ -1003,17 +1029,42 @@ public class GameManager : MonoBehaviour
         return new Vector2Int(int.Parse(nums[0]), int.Parse(nums[1]));
     }
 
-    void CollapseSequence()
+    void CollapseSequence(List<int> failedElementIndices = null)
     {
         if (humanInstance != null) 
             humanInstance.GetComponent<Renderer>().material.color = Color.red; 
             
         Debug.Log("GAME OVER: Structure Collapsing!");
         isCollapsing = true;
-        EnablePhysicsCollapse();
+        EnablePhysicsCollapse(failedElementIndices);
     }
 
-    void EnablePhysicsCollapse()
+    private void CreateBrokenBeamVisual(Transform t1, Transform t2)
+    {
+        GameObject obj = new GameObject("BrokenBeamSegment");
+        brokenParts.Add(obj);
+        
+        LineRenderer lr = obj.AddComponent<LineRenderer>();
+        lr.startWidth = 0.05f; 
+        lr.endWidth = 0.05f;
+        lr.positionCount = 2;
+        // Basic material
+        if (structureBuilder != null && structureBuilder.beamPrefab != null)
+        {
+            var prefabLr = structureBuilder.beamPrefab.GetComponent<LineRenderer>();
+            if (prefabLr != null) lr.material = prefabLr.sharedMaterial;
+        }
+        else
+        {
+            lr.material = new Material(Shader.Find("Sprites/Default"));
+        }
+        lr.startColor = Color.grey;
+        lr.endColor = Color.grey;
+
+        brokenBeamVisuals.Add(new BrokenBeamVisual { lr = lr, t1 = t1, t2 = t2 });
+    }
+
+    void EnablePhysicsCollapse(List<int> failedElementIndices)
     {
         // 1. Convert Nodes to Rigidbodies
         foreach (var node in allNodes)
@@ -1040,32 +1091,80 @@ public class GameManager : MonoBehaviour
             {
                 var col = node.gameObject.AddComponent<CircleCollider2D>();
                 col.radius = 0.2f;
-                // Optional: Physics Material with friction could be added here
             }
         }
 
-        // 2. Convert Beams to Joints (MATCHING MATH MODEL: DistanceJoints = Pin Joints)
-        foreach (var element in structuralElements)
+        // 2. Process Beams (Normal vs Snapped)
+        if (failedElementIndices == null) failedElementIndices = new List<int>();
+
+        for (int i = 0; i < structuralElements.Count; i++)
         {
+            int[] element = structuralElements[i];
             int id1 = element[0];
             int id2 = element[1];
 
             if (nodeMap.TryGetValue(id1, out Node n1) && nodeMap.TryGetValue(id2, out Node n2))
             {
-                // Use DistanceJoint2D to simulate a Truss member (Rod that can rotate)
-                // This allows mechanisms (like a square) to collapse as expected.
-                DistanceJoint2D joint = n1.gameObject.AddComponent<DistanceJoint2D>();
-                joint.connectedBody = n2.GetComponent<Rigidbody2D>();
-                joint.autoConfigureDistance = true; // Lock exact current distance
-                joint.maxDistanceOnly = false; // Rigid rod behavior (push and pull)
-                
-                // Make it stiff so it acts like steel, not a spring
-                // Setting frequency to 0 makes it a perfectly rigid constraint in Box2D
-                // However, slightly soft (e.g. 100) helps stability. Let's try 0 (Rigid) first for accuracy.
-                // If it explodes, we will use high frequency.
-                // joint.useLimits = false; // Removed as it is not a valid property for DistanceJoint2D
-                
-                joint.enableCollision = false; // Important: Connected nodes shouldn't collide with each other
+                // Check if this specific beam failed
+                if (failedElementIndices.Contains(i))
+                {
+                    // --- BEAM SNAP LOGIC ---
+                    Debug.Log($"Snapping beam between {id1} and {id2}");
+
+                    // 1. Hide original visual
+                    string name1 = $"Beam({n1.x_index},{n1.y_index})-({n2.x_index},{n2.y_index})";
+                    string name2 = $"Beam({n2.x_index},{n2.y_index})-({n1.x_index},{n1.y_index})";
+                    Transform beamT = structureHolder.Find(name1);
+                    if (beamT == null) beamT = structureHolder.Find(name2);
+                    if (beamT != null) beamT.gameObject.SetActive(false); // Hide it
+
+                    // 2. Create Split Nodes
+                    Vector3 midPoint = (n1.transform.position + n2.transform.position) / 2f;
+                    
+                    GameObject nodeM1 = Instantiate(gridController.nodePrefab, midPoint, Quaternion.identity);
+                    GameObject nodeM2 = Instantiate(gridController.nodePrefab, midPoint, Quaternion.identity);
+                    
+                    nodeM1.transform.localScale = Vector3.one * gridController.nodeScale;
+                    nodeM2.transform.localScale = Vector3.one * gridController.nodeScale;
+
+                    brokenParts.Add(nodeM1);
+                    brokenParts.Add(nodeM2);
+
+                    // Add Physics to new nodes
+                    Rigidbody2D rbM1 = nodeM1.AddComponent<Rigidbody2D>();
+                    Rigidbody2D rbM2 = nodeM2.AddComponent<Rigidbody2D>();
+                    rbM1.mass = 5f; rbM2.mass = 5f;
+                    
+                    // 3. Create Joints for the two halves
+                    // Half 1: N1 <-> M1
+                    DistanceJoint2D j1 = n1.gameObject.AddComponent<DistanceJoint2D>();
+                    j1.connectedBody = rbM1;
+                    j1.autoConfigureDistance = false;
+                    j1.distance = Vector2.Distance(n1.transform.position, midPoint);
+                    j1.maxDistanceOnly = false;
+
+                    // Half 2: N2 <-> M2
+                    DistanceJoint2D j2 = n2.gameObject.AddComponent<DistanceJoint2D>();
+                    j2.connectedBody = rbM2;
+                    j2.autoConfigureDistance = false;
+                    j2.distance = Vector2.Distance(n2.transform.position, midPoint);
+                    j2.maxDistanceOnly = false;
+                    
+                    // 4. Create Visuals for the two halves
+                    // We need a way to draw them. Create simple GameObjects with LineRenderer.
+                    CreateBrokenBeamVisual(n1.transform, nodeM1.transform);
+                    CreateBrokenBeamVisual(n2.transform, nodeM2.transform);
+                }
+                else
+                {
+                    // --- NORMAL BEAM LOGIC ---
+                    // Use DistanceJoint2D to simulate a Truss member (Rod that can rotate)
+                    DistanceJoint2D joint = n1.gameObject.AddComponent<DistanceJoint2D>();
+                    joint.connectedBody = n2.GetComponent<Rigidbody2D>();
+                    joint.autoConfigureDistance = true; // Lock exact current distance
+                    joint.maxDistanceOnly = false; // Rigid rod behavior (push and pull)
+                    joint.enableCollision = false; // Important: Connected nodes shouldn't collide with each other
+                }
             }
         }
 
@@ -1105,6 +1204,23 @@ public class GameManager : MonoBehaviour
          currentMode = GameMode.Build; // Force Build Mode
          isCollapsing = false;
          Debug.Log("Simulation Reset. Back to Build Mode. Undo history preserved.");
+
+         // 1. Cleanup Broken Parts (Snapped beams)
+         foreach(var obj in brokenParts)
+         {
+             if (obj != null) Destroy(obj);
+         }
+         brokenParts.Clear();
+         brokenBeamVisuals.Clear();
+         
+         // 2. Re-enable original visuals (that might have been hidden during snap)
+         if (structureHolder != null)
+         {
+             foreach(Transform child in structureHolder)
+             {
+                 child.gameObject.SetActive(true);
+             }
+         }
 
          if (nodePositions != null && allNodes != null)
          {
