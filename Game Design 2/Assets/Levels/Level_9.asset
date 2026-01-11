@@ -22,7 +22,7 @@ MonoBehaviour:
   - {x: 0, y: 2}
   - {x: 0, y: 3}
   loadNodeCoords: {x: 3, y: 2}
-  loadMass: 140000
+  loadMass: 14000
   deadZones:
   - x: 1
     y: 0

@@ -16,7 +16,7 @@ MonoBehaviour:
   gridHeight: 2
   maxMaterialLength: 20
   humanScale: 0.5
-  anvilScale: 0.8
+  anvilScale: 0.25
   anvilRopeLength: 1.5
   anchorCoords:
   - {x: 0, y: 1}

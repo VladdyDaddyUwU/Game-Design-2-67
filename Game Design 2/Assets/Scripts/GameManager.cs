@@ -592,6 +592,7 @@ public class GameManager : MonoBehaviour
             
             SpriteRenderer sr = humanInstance.AddComponent<SpriteRenderer>();
             sr.sprite = CreateCapsuleSprite();
+            sr.sortingOrder = 5;
             // We use the renderer's material color to ensure compatibility with existing color-changing logic
             humanInstance.GetComponent<Renderer>().material.color = Color.green;
         }
@@ -610,8 +611,38 @@ public class GameManager : MonoBehaviour
             anvilInstance.transform.localScale = Vector3.one * aScale;
 
             SpriteRenderer sr = anvilInstance.AddComponent<SpriteRenderer>();
+            
+            #if UNITY_EDITOR
+            string path = "Assets/Levels/anvil.png";
+            Sprite customAnvil = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(path);
+
+            if (customAnvil == null)
+            {
+                // Fallback: Try loading as Texture2D (if import settings aren't set to Sprite)
+                Texture2D tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                if (tex != null)
+                {
+                    customAnvil = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                }
+            }
+
+            if (customAnvil != null)
+            {
+                sr.sprite = customAnvil;
+                sr.color = Color.white;
+            }
+            else
+            {
+                Debug.LogWarning($"Could not load anvil sprite at '{path}'. Check file existence and path.");
+                sr.sprite = CreateSquareSprite();
+                sr.color = Color.black;
+            }
+            #else
             sr.sprite = CreateSquareSprite();
-            anvilInstance.GetComponent<Renderer>().material.color = Color.black;
+            sr.color = Color.black;
+            #endif
+            
+            sr.sortingOrder = 5;
         }
         if (elementsHolder != null) anvilInstance.transform.SetParent(elementsHolder);
         
@@ -626,6 +657,7 @@ public class GameManager : MonoBehaviour
         anvilRope.material = new Material(Shader.Find("Sprites/Default"));
         anvilRope.startColor = Color.gray;
         anvilRope.endColor = Color.gray;
+        anvilRope.sortingOrder = 0;
         
         anvilRope.SetPosition(0, ropeStartPos);
         anvilRope.SetPosition(1, ropeEndPos);
