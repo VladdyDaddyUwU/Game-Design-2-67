@@ -59,6 +59,15 @@ public class GameManager : MonoBehaviour
     private List<BrokenBeamVisual> brokenBeamVisuals = new List<BrokenBeamVisual>();
     private float storedNodeRadius = -1f;
 
+    private AudioSource audioSource;
+    private AudioClip buttonClickSound;
+    [Range(0f, 1f)] public float buttonVolume = 1f; // Public volume control, appears as slider
+
+    [Header("Ambiance")]
+    private AudioSource ambianceSource;
+    [Range(0f, 1f)] public float ambianceVolume = 0.5f;
+    private bool isAmbiancePausedByMenu = false;
+
     void Start()
     {
         #if UNITY_EDITOR
@@ -71,6 +80,28 @@ public class GameManager : MonoBehaviour
                  connectedNodeSprite = Sprite.Create(tex, new Rect(0,0,tex.width,tex.height), new Vector2(0.5f, 0.5f), 100f);
         }
         #endif
+
+        // --- One-shot sound setup ---
+        // Get or add AudioSource component
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
+        audioSource.volume = buttonVolume; // Apply volume here
+
+        // Load the shared button click sound
+        buttonClickSound = Resources.Load<AudioClip>("button_click");
+        
+        // --- Ambiance sound setup ---
+        GameObject ambiancePlayer = new GameObject("AmbiancePlayer");
+        ambiancePlayer.transform.SetParent(this.transform);
+        ambianceSource = ambiancePlayer.AddComponent<AudioSource>();
+        ambianceSource.clip = Resources.Load<AudioClip>("city-sounds-296780");
+        ambianceSource.volume = ambianceVolume;
+        ambianceSource.loop = true;
+        ambianceSource.playOnAwake = true;
+        ambianceSource.Play();
 
         if (gridController == null)
         {
@@ -170,6 +201,26 @@ public class GameManager : MonoBehaviour
         else
         {
             HideStressLabels();
+        }
+
+        // Handle Ambiance Pause/Resume with Menu
+        if (uiManager != null && ambianceSource != null)
+        {
+            bool menuOpen = uiManager.IsPauseMenuOpen();
+            // Debug.Log($"GameManager Update: IsPauseMenuOpen() returned {menuOpen}. isAmbiancePausedByMenu is {isAmbiancePausedByMenu}");
+
+            if (menuOpen && !isAmbiancePausedByMenu)
+            {
+                Debug.Log("GameManager: Pause menu is OPEN. Pausing ambiance.");
+                ambianceSource.Pause();
+                isAmbiancePausedByMenu = true;
+            }
+            else if (!menuOpen && isAmbiancePausedByMenu)
+            {
+                Debug.Log("GameManager: Pause menu is CLOSED. Resuming ambiance.");
+                ambianceSource.UnPause();
+                isAmbiancePausedByMenu = false;
+            }
         }
     }
 
@@ -292,6 +343,7 @@ public class GameManager : MonoBehaviour
 
     public void UndoLastAction()
     {
+        audioSource.PlayOneShot(buttonClickSound);
         if (structuralElements.Count == 0) return;
         
         // Prevent undoing pre-built structures
@@ -343,6 +395,7 @@ public class GameManager : MonoBehaviour
 
     public void RestartLevel()
     {
+        audioSource.PlayOneShot(buttonClickSound);
         // 1. Clear Data down to prebuilt level
         // Remove visuals for all elements that are ABOVE the prebuilt count
         // Iterate backwards from current count down to prebuilt count
@@ -926,6 +979,7 @@ public class GameManager : MonoBehaviour
 
     public void StartSimulation()
     {
+        audioSource.PlayOneShot(buttonClickSound);
         currentMode = GameMode.Simulate;
         Debug.Log("Starting simulation...");
 
