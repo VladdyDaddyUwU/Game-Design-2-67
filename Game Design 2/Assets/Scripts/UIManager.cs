@@ -10,6 +10,8 @@ public class UIManager : MonoBehaviour
     private GameObject levelSelectMenuObj; // New Level Select Panel
     private LevelManager levelManager; // Reference to access levels
     private Text levelCompleteText; // Missing field declaration
+    private AudioSource audioSource;
+    private AudioClip buttonClickSound;
 
     void Start()
     {
@@ -17,6 +19,18 @@ public class UIManager : MonoBehaviour
         SetupUI();
         SetupPauseMenu(); 
         SetupLevelSelectMenu(); // Build the secondary menu
+
+        // Add AudioSource component
+        audioSource = gameObject.GetComponent<AudioSource>();
+        if (audioSource == null) {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        // Load sound
+        buttonClickSound = Resources.Load<AudioClip>("button_click");
+        if (buttonClickSound == null) {
+            Debug.LogError("Failed to load button_click sound from Resources folder. Make sure the file is there and named correctly.");
+        }
     }
 
     private void SetupUI()
@@ -292,6 +306,10 @@ public class UIManager : MonoBehaviour
     {
         if (pauseMenuObj != null && !pauseMenuObj.activeSelf)
         {
+            if (buttonClickSound != null)
+            {
+                audioSource.PlayOneShot(buttonClickSound);
+            }
             TogglePauseMenu();
         }
     }
@@ -471,7 +489,9 @@ public class UIManager : MonoBehaviour
 
     public bool IsPauseMenuOpen()
     {
-        return (pauseMenuObj != null && pauseMenuObj.activeSelf) || (levelSelectMenuObj != null && levelSelectMenuObj.activeSelf);
+        bool isPaused = (pauseMenuObj != null && pauseMenuObj.activeSelf) || (levelSelectMenuObj != null && levelSelectMenuObj.activeSelf);
+        // Debug.Log($"UIManager.IsPauseMenuOpen: pauseMenu active = {pauseMenuObj.activeSelf}, levelSelect active = {levelSelectMenuObj.activeSelf}, returning {isPaused}");
+        return isPaused;
     }
 
     public void ShowLevelComplete()
