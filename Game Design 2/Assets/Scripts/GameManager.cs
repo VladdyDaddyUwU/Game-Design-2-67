@@ -46,6 +46,8 @@ public class GameManager : MonoBehaviour
     private bool isCollapsing = false;
     private StructuralAnalysis.AnalysisResult lastAnalysisResult;
     private int prebuiltElementCount = 0; // Track how many elements are permanent
+    
+    private Sprite connectedNodeSprite;
 
     // Tracking for broken parts
     private List<GameObject> brokenParts = new List<GameObject>();
@@ -59,6 +61,17 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
+        #if UNITY_EDITOR
+        string cbtPath = "Assets/Levels/CBT2.png";
+        connectedNodeSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(cbtPath);
+        if (connectedNodeSprite == null)
+        {
+             Texture2D tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(cbtPath);
+             if (tex != null)
+                 connectedNodeSprite = Sprite.Create(tex, new Rect(0,0,tex.width,tex.height), new Vector2(0.5f, 0.5f), 100f);
+        }
+        #endif
+
         if (gridController == null)
         {
             GameObject gridManagerObj = GameObject.Find("GridManager");
@@ -766,17 +779,38 @@ public class GameManager : MonoBehaviour
     {
         if (nodeMap.TryGetValue(nodeId, out Node n))
         {
-            Renderer r = n.GetComponent<Renderer>();
+            SpriteRenderer r = n.GetComponent<SpriteRenderer>();
             if (r == null) return;
 
             if (n.isAnchor)
             {
-                r.material.color = Color.gray;
+                if (n.defaultSprite != null) r.sprite = n.defaultSprite;
+                r.color = Color.gray;
             }
             else
             {
                 bool isConnected = adjacencyList.ContainsKey(nodeId) && adjacencyList[nodeId].Count > 0;
-                r.material.color = isConnected ? Color.black : Color.white;
+                
+                if (isConnected)
+                {
+                    if (connectedNodeSprite != null)
+                    {
+                        r.sprite = connectedNodeSprite;
+                        r.color = Color.white;
+                    }
+                    else
+                    {
+                        // Fallback: Tint black if custom sprite is missing
+                        if (n.defaultSprite != null) r.sprite = n.defaultSprite;
+                        r.color = Color.black;
+                    }
+                }
+                else
+                {
+                    // Disconnected / Default
+                    if (n.defaultSprite != null) r.sprite = n.defaultSprite;
+                    r.color = Color.white;
+                }
             }
         }
     }

@@ -6,4 +6,15 @@ public class Node : MonoBehaviour
     public int y_index;
     public int id;
     public bool isAnchor = false;
+
+    public Sprite defaultSprite;
+
+    void Awake()
+    {
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            defaultSprite = sr.sprite;
+        }
+    }
 }
