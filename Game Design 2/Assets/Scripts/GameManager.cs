@@ -586,11 +586,14 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            humanInstance = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            humanInstance = new GameObject("Human (Placeholder)");
             humanInstance.transform.position = humanPos;
             humanInstance.transform.localScale = Vector3.one * hScale;
+            
+            SpriteRenderer sr = humanInstance.AddComponent<SpriteRenderer>();
+            sr.sprite = CreateCapsuleSprite();
+            // We use the renderer's material color to ensure compatibility with existing color-changing logic
             humanInstance.GetComponent<Renderer>().material.color = Color.green;
-            humanInstance.name = "Human (Placeholder)";
         }
         if (elementsHolder != null) humanInstance.transform.SetParent(elementsHolder);
 
@@ -602,11 +605,13 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            anvilInstance = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            anvilInstance = new GameObject("Anvil (Placeholder)");
             anvilInstance.transform.position = anvilPos;
             anvilInstance.transform.localScale = Vector3.one * aScale;
+
+            SpriteRenderer sr = anvilInstance.AddComponent<SpriteRenderer>();
+            sr.sprite = CreateSquareSprite();
             anvilInstance.GetComponent<Renderer>().material.color = Color.black;
-            anvilInstance.name = "Anvil (Placeholder)";
         }
         if (elementsHolder != null) anvilInstance.transform.SetParent(elementsHolder);
         
@@ -624,6 +629,54 @@ public class GameManager : MonoBehaviour
         
         anvilRope.SetPosition(0, ropeStartPos);
         anvilRope.SetPosition(1, ropeEndPos);
+    }
+
+    private Sprite CreateCapsuleSprite()
+    {
+        int w = 64;
+        int h = 128;
+        Texture2D tex = new Texture2D(w, h);
+        Color[] colors = new Color[w * h];
+        Color white = Color.white;
+        Color clear = Color.clear;
+        float radius = w / 2f;
+        
+        for(int y=0; y<h; y++)
+        {
+            for(int x=0; x<w; x++)
+            {
+                // Distance from vertical segment
+                float cx = radius;
+                float cy_bottom = radius;
+                float cy_top = h - radius;
+                
+                float py = y;
+                float dy = 0;
+                if (py < cy_bottom) dy = cy_bottom - py;
+                else if (py > cy_top) dy = py - cy_top;
+                
+                float dx = Mathf.Abs(x - cx);
+                
+                if (dx*dx + dy*dy <= radius*radius)
+                    colors[y*w + x] = white;
+                else
+                    colors[y*w + x] = clear;
+            }
+        }
+        tex.SetPixels(colors);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0,0,w,h), new Vector2(0.5f, 0.5f), 64f);
+    }
+
+    private Sprite CreateSquareSprite()
+    {
+        int size = 64;
+        Texture2D tex = new Texture2D(size, size);
+        Color[] colors = new Color[size * size];
+        for (int i = 0; i < colors.Length; i++) colors[i] = Color.white;
+        tex.SetPixels(colors);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 64f);
     }
 
     public void RefreshNodes()
