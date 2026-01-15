@@ -13,6 +13,11 @@ public class StructureBuilder : MonoBehaviour
     private LineRenderer tempLine;
     private bool isDrawing = false;
     private Camera mainCamera;
+    private AudioSource audioSource;
+    private AudioClip placingSound;
+    private AudioClip incorrectPlacementSound;
+    [Range(0f, 1f)] public float placingVolume = 1f;
+    [Range(0f, 1f)] public float incorrectPlacementVolume = 1f;
 
     void Start()
     {
@@ -21,6 +26,14 @@ public class StructureBuilder : MonoBehaviour
         {
             gameManager = FindObjectOfType<GameManager>();
         }
+
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
+        placingSound = Resources.Load<AudioClip>("placing");
+        incorrectPlacementSound = Resources.Load<AudioClip>("incorect-placement");
     }
 
     void Update()
@@ -132,6 +145,7 @@ public class StructureBuilder : MonoBehaviour
         isDrawing = false;
         if (startNode == null || endNode == null || startNode == endNode)
         {
+            if (incorrectPlacementSound != null) audioSource.PlayOneShot(incorrectPlacementSound, incorrectPlacementVolume);
             return;
         }
 
@@ -139,6 +153,7 @@ public class StructureBuilder : MonoBehaviour
         if (!gameManager.IsNodeConnectedToAnchor(endNode.id) && !gameManager.IsNodeConnectedToAnchor(startNode.id))
         {
              Debug.LogWarning("One of the nodes must be connected to the main structure.");
+             if (incorrectPlacementSound != null) audioSource.PlayOneShot(incorrectPlacementSound, incorrectPlacementVolume);
              return;
         }
         
@@ -146,6 +161,7 @@ public class StructureBuilder : MonoBehaviour
         if (gameManager.DoesElementExist(startNode.id, endNode.id))
         {
             Debug.LogWarning("This beam already exists.");
+            if (incorrectPlacementSound != null) audioSource.PlayOneShot(incorrectPlacementSound, incorrectPlacementVolume);
             return;
         }
 
@@ -153,11 +169,17 @@ public class StructureBuilder : MonoBehaviour
         if (gameManager.gridController != null && gameManager.gridController.IsSegmentIntersectingDeadZone(startNode.transform.position, endNode.transform.position))
         {
             Debug.LogWarning("Cannot build through the restricted area (Dead Zone).");
+            if (incorrectPlacementSound != null) audioSource.PlayOneShot(incorrectPlacementSound, incorrectPlacementVolume);
             return;
         }
 
         // Add the structural element first
         gameManager.AddElement(startNode.id, endNode.id);
+
+        if (placingSound != null)
+        {
+            audioSource.PlayOneShot(placingSound, placingVolume);
+        }
 
         // Create the permanent visual for the beam
         GameObject beamObj = null;
@@ -191,6 +213,7 @@ public class StructureBuilder : MonoBehaviour
         // Let's use a slightly modified approach: Check if the *just added* beam overlaps with any *other* beam.
         if (CheckAndRemoveIfInvalid(startNode, endNode, beamObj))
         {
+             if (incorrectPlacementSound != null) audioSource.PlayOneShot(incorrectPlacementSound, incorrectPlacementVolume);
              return;
         }
         

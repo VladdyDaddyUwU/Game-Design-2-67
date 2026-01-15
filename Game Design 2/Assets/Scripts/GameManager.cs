@@ -59,11 +59,17 @@ public class GameManager : MonoBehaviour
 
     private AudioSource audioSource;
     private AudioClip buttonClickSound;
+    private AudioClip levelCompleteSound;
+    private AudioClip failMusic;
     [Range(0f, 1f)] public float buttonVolume = 1f; // Public volume control, appears as slider
+    [Range(0f, 1f)] public float levelCompleteVolume = 1f;
+    [Range(0f, 1f)] public float failMusicVolume = 1f;
 
     [Header("Ambiance")]
     private AudioSource ambianceSource;
+    private AudioSource simulationAmbianceSource;
     [Range(0f, 1f)] public float ambianceVolume = 0.5f;
+    [Range(0f, 1f)] public float simulationAmbianceVolume = 0.5f;
     private bool isAmbiancePausedByMenu = false;
 
     void Start()
@@ -79,6 +85,8 @@ public class GameManager : MonoBehaviour
 
         // Load the shared button click sound
         buttonClickSound = Resources.Load<AudioClip>("button_click");
+        levelCompleteSound = Resources.Load<AudioClip>("level-completion");
+        failMusic = Resources.Load<AudioClip>("fail_music");
         
         // --- Ambiance sound setup ---
         GameObject ambiancePlayer = new GameObject("AmbiancePlayer");
@@ -87,8 +95,17 @@ public class GameManager : MonoBehaviour
         ambianceSource.clip = Resources.Load<AudioClip>("city-sounds-296780");
         ambianceSource.volume = ambianceVolume;
         ambianceSource.loop = true;
-        ambianceSource.playOnAwake = true;
-        ambianceSource.Play();
+        ambianceSource.playOnAwake = false;
+        // ambianceSource.Play(); // Now controlled by Update()
+
+        // --- Simulation Ambiance sound setup ---
+        GameObject simulationAmbiancePlayer = new GameObject("SimulationAmbiancePlayer");
+        simulationAmbiancePlayer.transform.SetParent(this.transform);
+        simulationAmbianceSource = simulationAmbiancePlayer.AddComponent<AudioSource>();
+        simulationAmbianceSource.clip = Resources.Load<AudioClip>("construction-site-49508");
+        simulationAmbianceSource.volume = simulationAmbianceVolume;
+        simulationAmbianceSource.loop = true;
+        simulationAmbianceSource.playOnAwake = false;
 
         if (gridController == null)
         {
@@ -190,23 +207,35 @@ public class GameManager : MonoBehaviour
             HideStressLabels();
         }
 
-        // Handle Ambiance Pause/Resume with Menu
-        if (uiManager != null && ambianceSource != null)
+        // Handle Ambiance based on Game State
+        if (ambianceSource != null)
         {
-            bool menuOpen = uiManager.IsPauseMenuOpen();
-            // Debug.Log($"GameManager Update: IsPauseMenuOpen() returned {menuOpen}. isAmbiancePausedByMenu is {isAmbiancePausedByMenu}");
+            // Music should play only in Build mode and when the menu is not open.
+            bool shouldBePlaying = currentMode == GameMode.Build && (uiManager == null || !uiManager.IsPauseMenuOpen());
 
-            if (menuOpen && !isAmbiancePausedByMenu)
+            if (shouldBePlaying && !ambianceSource.isPlaying)
             {
-                Debug.Log("GameManager: Pause menu is OPEN. Pausing ambiance.");
-                ambianceSource.Pause();
-                isAmbiancePausedByMenu = true;
+                ambianceSource.Play();
             }
-            else if (!menuOpen && isAmbiancePausedByMenu)
+            else if (!shouldBePlaying && ambianceSource.isPlaying)
             {
-                Debug.Log("GameManager: Pause menu is CLOSED. Resuming ambiance.");
-                ambianceSource.UnPause();
-                isAmbiancePausedByMenu = false;
+                ambianceSource.Pause();
+            }
+        }
+
+        // Handle Simulation Ambiance based on Game State
+        if (simulationAmbianceSource != null)
+        {
+            // Music should play only in Simulate mode and when the menu is not open.
+            bool shouldBePlaying = currentMode == GameMode.Simulate && (uiManager == null || !uiManager.IsPauseMenuOpen());
+
+            if (shouldBePlaying && !simulationAmbianceSource.isPlaying)
+            {
+                simulationAmbianceSource.Play();
+            }
+            else if (!shouldBePlaying && simulationAmbianceSource.isPlaying)
+            {
+                simulationAmbianceSource.Pause();
             }
         }
     }
@@ -1081,6 +1110,10 @@ public class GameManager : MonoBehaviour
     IEnumerator LevelCompleteSequence()
     {
         if (uiManager != null) uiManager.ShowLevelComplete();
+        if (levelCompleteSound != null)
+        {
+            audioSource.PlayOneShot(levelCompleteSound, levelCompleteVolume);
+        }
         
         yield return new WaitForSeconds(3.5f);
         
@@ -1250,6 +1283,10 @@ public class GameManager : MonoBehaviour
             
         Debug.Log("GAME OVER: Structure Collapsing!");
         isCollapsing = true;
+        if (failMusic != null)
+        {
+            audioSource.PlayOneShot(failMusic, failMusicVolume);
+        }
         EnablePhysicsCollapse(snappedIndices, buckledIndices);
     }
 
