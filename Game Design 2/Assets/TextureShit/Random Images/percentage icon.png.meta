@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 162410e49ae9771419c1b04cc3147959
+guid: 9dcdccaa729ef2443a0523cc3bafe740
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -97,13 +97,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: city new new new_0
+      name: percentage icon_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 1920
-        height: 1080
+        x: 7
+        y: 13
+        width: 111
+        height: 112
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -112,8 +112,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 9a2ed56e114bfd44cb21715a5e6e8a37
-      internalID: -624767987
+      spriteID: 9952b7731e1e0dc4597aed4edabc13fd
+      internalID: 2143482592
       vertices: []
       indices: 
       edges: []
@@ -122,7 +122,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: dbff244724c6f6b4e8c9ebb1938cb993
+    spriteID: 48385c1da427e834fa4579309a971146
     internalID: 0
     vertices: []
     indices: 
@@ -132,7 +132,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      city new new new_0: -624767987
+      percentage icon_0: 2143482592
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
