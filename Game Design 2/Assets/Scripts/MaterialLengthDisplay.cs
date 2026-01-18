@@ -76,8 +76,8 @@ public class MaterialLengthDisplay : MonoBehaviour
         float used = gameManager.GetTotalBeamLength();
         float max = gameManager.GetMaxMaterialLength();
         
-        // Format: "Used Material: 12.5m / 20.0m"
-        string txt = $"Used Material: {used:F1}m / {max:F1}m";
+        // Format: "Used Material: 12.5m"
+        string txt = $"Used Material: {used:F1}m";
         
         if (used > max)
         {

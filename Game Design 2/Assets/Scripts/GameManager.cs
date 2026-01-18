@@ -74,19 +74,8 @@ public class GameManager : MonoBehaviour
     [Range(0f, 1f)] public float simulationAmbianceVolume = 0.5f;
     private bool isAmbiancePausedByMenu = false;
 
-    void Start()
+    void Awake()
     {
-        #if UNITY_EDITOR
-        string cbtPath = "Assets/Levels/CBT2.png";
-        connectedNodeSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(cbtPath);
-        if (connectedNodeSprite == null)
-        {
-             Texture2D tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(cbtPath);
-             if (tex != null)
-                 connectedNodeSprite = Sprite.Create(tex, new Rect(0,0,tex.width,tex.height), new Vector2(0.5f, 0.5f), 100f);
-        }
-        #endif
-
         // --- One-shot sound setup ---
         // Get or add AudioSource component
         audioSource = GetComponent<AudioSource>();
@@ -100,6 +89,20 @@ public class GameManager : MonoBehaviour
         buttonClickSound = Resources.Load<AudioClip>("button_click");
         levelCompleteSound = Resources.Load<AudioClip>("level-completion");
         failMusic = Resources.Load<AudioClip>("fail_music");
+    }
+
+    void Start()
+    {
+        #if UNITY_EDITOR
+        string cbtPath = "Assets/Levels/CBT2.png";
+        connectedNodeSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(cbtPath);
+        if (connectedNodeSprite == null)
+        {
+             Texture2D tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(cbtPath);
+             if (tex != null)
+                 connectedNodeSprite = Sprite.Create(tex, new Rect(0,0,tex.width,tex.height), new Vector2(0.5f, 0.5f), 100f);
+        }
+        #endif
         
         // --- Ambiance sound setup ---
         GameObject ambiancePlayer = new GameObject("AmbiancePlayer");
@@ -1035,11 +1038,18 @@ public class GameManager : MonoBehaviour
     public float GetTotalBeamLength()
     {
         float totalLen = 0f;
-        foreach (int[] el in structuralElements)
+        // Start at prebuiltElementCount so we only count Player-Added beams
+        // This ensures it starts at 0 when the level loads/restarts
+        for (int i = prebuiltElementCount; i < structuralElements.Count; i++)
         {
+            int[] el = structuralElements[i];
             if (nodeMap.TryGetValue(el[0], out Node n1) && nodeMap.TryGetValue(el[1], out Node n2))
             {
-                totalLen += Vector2.Distance(n1.transform.position, n2.transform.position);
+                // Calculate distance based on GRID INDICES (Logical Distance)
+                // This ensures adjacent nodes are exactly 1m apart, regardless of visual scale
+                float dx = n1.x_index - n2.x_index;
+                float dy = n1.y_index - n2.y_index;
+                totalLen += Mathf.Sqrt(dx * dx + dy * dy);
             }
         }
         return totalLen;
