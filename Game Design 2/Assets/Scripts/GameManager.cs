@@ -1032,6 +1032,28 @@ public class GameManager : MonoBehaviour
         return (max1 > min2) && (max2 > min1);
     }
 
+    public float GetTotalBeamLength()
+    {
+        float totalLen = 0f;
+        foreach (int[] el in structuralElements)
+        {
+            if (nodeMap.TryGetValue(el[0], out Node n1) && nodeMap.TryGetValue(el[1], out Node n2))
+            {
+                totalLen += Vector2.Distance(n1.transform.position, n2.transform.position);
+            }
+        }
+        return totalLen;
+    }
+
+    public float GetMaxMaterialLength()
+    {
+        if (gridController != null && gridController.currentLevel != null)
+        {
+            return gridController.currentLevel.maxMaterialLength;
+        }
+        return 100f; // Default fallback
+    }
+
     public void StartSimulation()
     {
         audioSource.PlayOneShot(buttonClickSound);
