@@ -13,8 +13,12 @@ public class LevelData : ScriptableObject
     public int gridHeight = 10;
 
     [Header("Level Config")]
-    [Tooltip("Amount of material available for this level (in meters)")]
-    public float maxMaterialLength = 20.0f;
+    [Tooltip("Amount of material available for 7x7 beams (0.0049 area)")]
+    public float limit7x7 = 20.0f;
+    [Tooltip("Amount of material available for 5x5 beams (0.0025 area)")]
+    public float limit5x5 = 20.0f;
+    [Tooltip("Amount of material available for 3x3 beams (0.0009 area)")]
+    public float limit3x3 = 20.0f;
 
     [Tooltip("Scale of the human character")]
     public float humanScale = 0.5f;

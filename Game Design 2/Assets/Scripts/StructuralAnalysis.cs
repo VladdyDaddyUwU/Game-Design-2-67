@@ -169,7 +169,7 @@ public static class StructuralAnalysis
         List<int> fixedNodeIndices,
         Dictionary<int, Vector2> externalLoads,
         float youngsModulus,
-        float crossSectionArea,
+        float[] elementAreas, // CHANGED: Now an array matching elements count
         float yieldStress,
         float density = 7850f) // Default to Steel density (kg/m3)
     {
@@ -187,6 +187,7 @@ public static class StructuralAnalysis
         {
             int ni = elements[e][0];
             int nj = elements[e][1];
+            float area = elementAreas[e]; // Get specific area for this beam
 
             Vector2 pos_i = nodePositions[ni];
             Vector2 pos_j = nodePositions[nj];
@@ -199,7 +200,7 @@ public static class StructuralAnalysis
             // 1. Calculate Self-Weight for this beam
             // Volume = Area * Length. Mass = Density * Volume.
             // Force = Mass * Gravity (-9.81).
-            double beamMass = density * crossSectionArea * L;
+            double beamMass = density * area * L;
             double beamWeight = beamMass * -9.81;
             
             // Distribute half the weight to each node (Lumped Mass approach)
@@ -209,7 +210,7 @@ public static class StructuralAnalysis
             // 2. Stiffness Matrix Calculation
             double cx = dx / L;
             double cy = dy / L;
-            double stiffness = crossSectionArea * youngsModulus / L;
+            double stiffness = area * youngsModulus / L;
 
             var ke = new double[4, 4]
             {
@@ -316,6 +317,7 @@ public static class StructuralAnalysis
         {
             int ni = elements[e][0];
             int nj = elements[e][1];
+            float area = elementAreas[e]; // Use specific area
 
             double L = elementLengths[e];
             double dx = nodePositions[nj].x - nodePositions[ni].x;
@@ -326,15 +328,15 @@ public static class StructuralAnalysis
             var ue = new double[] { u[2*ni], u[2*ni+1], u[2*nj], u[2*nj+1] };
             
             // Axial Force: F = (EA/L) * ChangeInLength
-            double force = (crossSectionArea * youngsModulus / L) * (-cx * ue[0] - cy * ue[1] + cx * ue[2] + cy * ue[3]);
+            double force = (area * youngsModulus / L) * (-cx * ue[0] - cy * ue[1] + cx * ue[2] + cy * ue[3]);
             memberForces[e] = (float)force;
             
             // Calculate Stress Percentage
-            float maxTensileForce = (float)(crossSectionArea * yieldStress);
+            float maxTensileForce = (float)(area * yieldStress);
             
             // Euler Buckling Critical Load (P_cr = pi^2 * E * I / L^2)
             // Assuming square cross section: I = a^4 / 12 = A^2 / 12
-            float momentOfInertia = (float) (Mathf.Pow(Mathf.Sqrt(crossSectionArea), 4) / 12.0f);
+            float momentOfInertia = (float) (Mathf.Pow(Mathf.Sqrt(area), 4) / 12.0f);
             float maxCompressiveBucklingLoad = (float)((Mathf.PI * Mathf.PI * youngsModulus * momentOfInertia) / ((float)L * (float)L));
 
             if (Mathf.Abs((float)force) < 1e-4)

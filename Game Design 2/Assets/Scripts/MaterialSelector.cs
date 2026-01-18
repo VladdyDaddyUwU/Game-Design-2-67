@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 
 public class MaterialSelector : MonoBehaviour
 {
@@ -10,10 +12,24 @@ public class MaterialSelector : MonoBehaviour
     public GameObject material2_5x5; // Material 2
     public GameObject material3_3x3; // Material 3
 
+    [Header("Meters Left Labels (TMP)")]
+    public TMP_Text label7x7;
+    public TMP_Text label5x5;
+    public TMP_Text label3x3;
+
+    [Header("Meters Left Labels (Legacy)")]
+    public Text legacyLabel7x7;
+    public Text legacyLabel5x5;
+    public Text legacyLabel3x3;
+
     // Standard areas: 7x7=0.0049, 5x5=0.0025, 3x3=0.0009
     private readonly float areaLarge = 0.0049f;
     private readonly float areaMedium = 0.0025f;
     private readonly float areaSmall = 0.0009f;
+
+    private Color originalColor7x7 = Color.black;
+    private Color originalColor5x5 = Color.black;
+    private Color originalColor3x3 = Color.black;
 
     void Start()
     {
@@ -27,6 +43,11 @@ public class MaterialSelector : MonoBehaviour
         if (material2_5x5 == null) material2_5x5 = FindChild(materialDisplay, "Material 2");
         if (material3_3x3 == null) material3_3x3 = FindChild(materialDisplay, "Material 3");
         
+        // 2. Find Labels specifically named "Text (Metres Left)"
+        FindLabels(material1_7x7, ref label7x7, ref legacyLabel7x7, ref originalColor7x7);
+        FindLabels(material2_5x5, ref label5x5, ref legacyLabel5x5, ref originalColor5x5);
+        FindLabels(material3_3x3, ref label3x3, ref legacyLabel3x3, ref originalColor3x3);
+
         // Debug: Report status
         Debug.Log($"[MaterialSelector Setup] Found Material 1: {(material1_7x7 != null ? material1_7x7.name : "NULL")}");
         Debug.Log($"[MaterialSelector Setup] Found Material 2: {(material2_5x5 != null ? material2_5x5.name : "NULL")}");
@@ -36,11 +57,81 @@ public class MaterialSelector : MonoBehaviour
         HighlightButton(areaMedium);
     }
 
+    void FindLabels(GameObject parent, ref TMP_Text tmpLabel, ref Text legacyLabel, ref Color originalColor)
+    {
+        if (parent == null) return;
+        Transform t = parent.transform.Find("Text (Metres Left)");
+        
+        // Recursive search fallback
+        if (t == null)
+        {
+            foreach (Transform child in parent.GetComponentsInChildren<Transform>())
+            {
+                if (child.name == "Text (Metres Left)") 
+                {
+                    t = child;
+                    break;
+                }
+            }
+        }
+
+        if (t != null)
+        {
+            tmpLabel = t.GetComponent<TMP_Text>();
+            legacyLabel = t.GetComponent<Text>();
+            
+            // Capture original color
+            if (tmpLabel != null) originalColor = tmpLabel.color;
+            else if (legacyLabel != null) originalColor = legacyLabel.color;
+
+            // Ensure active
+            t.gameObject.SetActive(true);
+
+            Debug.Log($"[MaterialSelector] Found Label '{t.name}' inside '{parent.name}'. Original Color: {originalColor}");
+
+            if (tmpLabel == null && legacyLabel == null)
+            {
+                Debug.LogWarning($"Found 'Text (Metres Left)' under {parent.name} but it has NO Text component!");
+            }
+        }
+    }
+
     void Update()
     {
         if (Input.GetMouseButtonDown(0)) // Left Click
         {
             CheckClick();
+        }
+
+        UpdateMetersLeft();
+    }
+
+    void UpdateMetersLeft()
+    {
+        if (gameManager == null || gameManager.gridController == null || gameManager.gridController.currentLevel == null) return;
+
+        var level = gameManager.gridController.currentLevel;
+
+        UpdateSingleLabel(label7x7, legacyLabel7x7, level.limit7x7, 0.0049f, originalColor7x7);
+        UpdateSingleLabel(label5x5, legacyLabel5x5, level.limit5x5, 0.0025f, originalColor5x5);
+        UpdateSingleLabel(label3x3, legacyLabel3x3, level.limit3x3, 0.0009f, originalColor3x3);
+    }
+
+    void UpdateSingleLabel(TMP_Text tmp, Text legacy, float limit, float area, Color baseColor)
+    {
+        float left = limit - gameManager.GetBeamLengthByArea(area);
+        string text = $"{left:F1} m left";
+        Color color = (left < 0) ? Color.red : baseColor;
+
+        if (tmp != null)
+        {
+            tmp.text = text;
+            tmp.color = color;
+        }
+        if (legacy != null)
+        {
+            legacy.text = text;
+            legacy.color = color;
         }
     }
 
