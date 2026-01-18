@@ -471,6 +471,32 @@ public class GameManager : MonoBehaviour
         Debug.Log("Level Restarted: Player beams cleared, pre-built preserved.");
     }
     
+    public void SetStructuralMaterial(float area)
+    {
+        memberCrossSectionArea = area;
+        float width = Mathf.Sqrt(area); // Assuming square cross-section for width visualization
+
+        if (structureBuilder != null)
+        {
+            structureBuilder.beamWidth = width;
+        }
+
+        // Update existing visuals
+        if (structureHolder != null)
+        {
+            foreach (Transform child in structureHolder)
+            {
+                LineRenderer lr = child.GetComponent<LineRenderer>();
+                if (lr != null)
+                {
+                    lr.startWidth = width;
+                    lr.endWidth = width;
+                }
+            }
+        }
+        Debug.Log($"Material Changed: Area={area}, Width={width}");
+    }
+
     public void InitializeStructure(GridController sourceGridController = null)
     {
         // cleanup phantom NodeHolder if it exists under GameManager
