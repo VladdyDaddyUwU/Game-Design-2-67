@@ -738,8 +738,12 @@ public class GameManager : MonoBehaviour
             this.anvilHangingDistance = gridController.currentLevel.anvilRopeLength;
         }
 
+        // Adjust Human Pos to sit on the node.
+        // If Pivot is Center, we need to raise by (Height/2).
+        // If Pivot is Feet, we need 0 offset.
+        // Assuming Center Pivot for now, but reducing offset to fix "Levitation".
         Vector2 humanPos = gridController.GetNodePosition(targetX, 0); 
-        humanPos += Vector2.up * hScale;
+        humanPos += Vector2.up * (hScale * 0.289f); // Reduced to sit lower
 
         Vector2 ropeStartPos = targetNodePos;
         Vector2 ropeEndPos = targetNodePos + (Vector2.down * anvilHangingDistance);
@@ -760,6 +764,7 @@ public class GameManager : MonoBehaviour
             SpriteRenderer sr = humanInstance.AddComponent<SpriteRenderer>();
             sr.sprite = CreateCapsuleSprite();
             sr.sortingOrder = 5;
+            // Only tint the placeholder, not the real prefab
             humanInstance.GetComponent<Renderer>().material.color = Color.green;
         }
         if (elementsHolder != null) humanInstance.transform.SetParent(elementsHolder);
@@ -1342,7 +1347,8 @@ public class GameManager : MonoBehaviour
 
     void CollapseSequence(List<int> snappedIndices = null, List<int> buckledIndices = null)
     {
-        if (humanInstance != null) 
+        // Don't tint red if using a prefab (let animation handle it)
+        if (humanPrefab == null && humanInstance != null) 
             humanInstance.GetComponent<Renderer>().material.color = Color.red; 
             
         Debug.Log("GAME OVER: Structure Collapsing!");
