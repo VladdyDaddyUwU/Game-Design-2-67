@@ -454,13 +454,13 @@ public class UIManager : MonoBehaviour
         ContentSizeFitter fitter = contentObj.AddComponent<ContentSizeFitter>();
         fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-        // Generate Buttons
+        // Generate Buttons (Structure Only)
         if (levelManager != null && levelManager.levels != null)
         {
             for (int i = 0; i < levelManager.levels.Count; i++)
             {
                 int levelIndex = i; // Capture for lambda
-                GameObject lvlBtn = new GameObject($"Level_{i+1}");
+                GameObject lvlBtn = new GameObject($"Level_{i}");
                 lvlBtn.transform.SetParent(contentObj.transform, false);
                 
                 Image btnImg = lvlBtn.AddComponent<Image>();
@@ -479,8 +479,26 @@ public class UIManager : MonoBehaviour
                 t.fontSize = 40;
                 t.alignment = TextAnchor.MiddleCenter;
                 t.color = Color.white;
-                txtObj.GetComponent<RectTransform>().anchorMin = Vector2.zero;
-                txtObj.GetComponent<RectTransform>().anchorMax = Vector2.one;
+                
+                // Position text lower to make room for stars
+                RectTransform txtRect = txtObj.GetComponent<RectTransform>();
+                txtRect.anchorMin = new Vector2(0, 0);
+                txtRect.anchorMax = new Vector2(1, 0.7f);
+                txtRect.offsetMin = Vector2.zero;
+                txtRect.offsetMax = Vector2.zero;
+
+                // Create a container for stars, but don't populate it yet
+                GameObject starsHolder = new GameObject("Stars");
+                starsHolder.transform.SetParent(lvlBtn.transform, false);
+                RectTransform shRect = starsHolder.AddComponent<RectTransform>();
+                shRect.anchorMin = new Vector2(0.1f, 0.65f);
+                shRect.anchorMax = new Vector2(0.9f, 0.95f);
+                shRect.offsetMin = Vector2.zero; shRect.offsetMax = Vector2.zero;
+
+                HorizontalLayoutGroup hlg = starsHolder.AddComponent<HorizontalLayoutGroup>();
+                hlg.childAlignment = TextAnchor.MiddleCenter;
+                hlg.spacing = 2;
+                hlg.childControlHeight = true; hlg.childControlWidth = true;
             }
         }
 
@@ -509,14 +527,63 @@ public class UIManager : MonoBehaviour
         backTxtObj.GetComponent<RectTransform>().anchorMin = Vector2.zero;
         backTxtObj.GetComponent<RectTransform>().anchorMax = Vector2.one;
 
-
         levelSelectMenuObj.SetActive(false);
+    }
+    
+    // Updates the star display on the Level Select Menu
+    private void UpdateLevelSelectDisplay()
+    {
+        if (levelSelectMenuObj == null) return;
+        
+        // Find the Content object which holds all level buttons
+        Transform contentTr = levelSelectMenuObj.transform.Find("ScrollView/Viewport/Content");
+        if (contentTr == null) return;
+
+        foreach (Transform child in contentTr)
+        {
+            if (child.name.StartsWith("Level_"))
+            {
+                // Parse Index from name
+                string indexStr = child.name.Replace("Level_", "");
+                if (int.TryParse(indexStr, out int levelIndex))
+                {
+                    Transform starsHolder = child.Find("Stars");
+                    if (starsHolder != null)
+                    {
+                        // Clear existing stars
+                        foreach(Transform star in starsHolder) Destroy(star.gameObject);
+                        
+                        // Check Session Stars
+                        int starsEarned = 0;
+                        if (LevelData.SessionStars.ContainsKey(levelIndex))
+                        {
+                            starsEarned = LevelData.SessionStars[levelIndex];
+                        }
+                        
+                        // Create Star Icons
+                        for (int s = 0; s < starsEarned; s++)
+                        {
+                            GameObject starIcon = new GameObject("Star");
+                            starIcon.transform.SetParent(starsHolder, false);
+                            Image sImg = starIcon.AddComponent<Image>();
+                            if (starSprite != null) sImg.sprite = starSprite;
+                            sImg.color = new Color(1f, 0.84f, 0f); // Gold
+                            sImg.preserveAspect = true;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public void ShowLevelSelect()
     {
         if (pauseMenuObj != null) pauseMenuObj.SetActive(false);
-        if (levelSelectMenuObj != null) levelSelectMenuObj.SetActive(true);
+        if (levelSelectMenuObj != null) 
+        {
+            UpdateLevelSelectDisplay(); // Force refresh every open
+            levelSelectMenuObj.SetActive(true);
+        }
     }
 
     public void HideLevelSelect()

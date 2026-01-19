@@ -33,3 +33,6 @@ MonoBehaviour:
   prebuiltBeams:
   - start: {x: 1, y: 0}
     end: {x: 1, y: 1}
+  threeStarsLengthLimit: 16.1
+  twoStarsLengthLimit: 20.1
+  oneStarLengthLimit: 100

@@ -1185,6 +1185,24 @@ public class GameManager : MonoBehaviour
     IEnumerator LevelCompleteSequence()
     {
         int stars = CalculateStars();
+        
+        // Save Progress (Session Only)
+        if (levelManager != null)
+        {
+            int idx = levelManager.currentLevelIndex;
+            int currentBest = 0;
+            if (LevelData.SessionStars.ContainsKey(idx)) 
+            {
+                currentBest = LevelData.SessionStars[idx];
+            }
+            
+            if (stars > currentBest)
+            {
+                LevelData.SessionStars[idx] = stars;
+                Debug.Log($"New Session Best for Level {idx}: {stars} Stars!");
+            }
+        }
+
         if (uiManager != null) uiManager.ShowLevelComplete(stars);
         
         if (levelCompleteSound != null)

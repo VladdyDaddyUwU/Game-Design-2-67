@@ -7,6 +7,9 @@ public class LevelData : ScriptableObject
     // Static variable to pass data between scenes (Menu -> Game)
     // -1 indicates no specific level was selected (default start)
     public static int SelectedLevel = -1;
+    
+    // Store stars earned in the current session (LevelIndex -> StarCount)
+    public static Dictionary<int, int> SessionStars = new Dictionary<int, int>();
 
     [Header("Grid Dimensions")]
     public int gridWidth = 10;
