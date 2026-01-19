@@ -145,6 +145,9 @@ public class GridController : MonoBehaviour
 
     public void GenerateGrid()
     {
+        // Prevent Update loop from regenerating if called manually
+        isDirty = false;
+
         if (nodeHolder == null)
         {
             // Robustly find or create NodeHolder as a child

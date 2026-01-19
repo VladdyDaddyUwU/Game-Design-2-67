@@ -2,6 +2,7 @@ using UnityEngine;
 using TMPro;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
 public class DialogueManager : MonoBehaviour
 {
@@ -29,11 +30,11 @@ public class DialogueManager : MonoBehaviour
 
     private int currentLineIndex = 0;
     private bool isTyping = false;
+    private bool isEnding = false;
     private Coroutine typingCoroutine;
 
     void Start()
     {
-        // 1. Auto-assign references if they are missing
         if (bubbleObject == null) bubbleObject = this.gameObject;
         
         if (dialogueText == null) 
@@ -45,12 +46,10 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
-        // 1.5 Setup "Centering and stuff" programmatically
         dialogueText.alignment = TextAlignmentOptions.Center;
         dialogueText.enableWordWrapping = true;
         dialogueText.overflowMode = TextOverflowModes.Overflow;
 
-        // 2. Start the sequence if we have lines
         if (lines.Count > 0)
         {
             bubbleObject.SetActive(true);
@@ -64,8 +63,9 @@ public class DialogueManager : MonoBehaviour
 
     void Update()
     {
-        // 3. Advance dialogue on click or key press
-        if (Input.GetMouseButtonDown(0) || Input.anyKeyDown)
+        if (isEnding) return; 
+
+        if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space))
         {
             if (isTyping)
             {
@@ -83,7 +83,6 @@ public class DialogueManager : MonoBehaviour
         currentLineIndex = index;
         dialogueText.text = ""; 
         
-        // Show Visual for this line
         if (lines[index].visualToShow != null)
         {
             lines[index].visualToShow.SetActive(true);
@@ -135,12 +134,15 @@ public class DialogueManager : MonoBehaviour
 
     void EndDialogue()
     {
-        bubbleObject.SetActive(false);
+        isEnding = true;
+        // Immediate Transition
+        LevelData.SelectedLevel = 0;
+        SceneManager.LoadScene("SampleScene");
     }
 
-    // Public method if you want to trigger dialogue from other scripts
     public void ResetAndStart()
     {
+        isEnding = false;
         // Ensure any active visual is hidden before restarting
         if (currentLineIndex < lines.Count && lines[currentLineIndex].visualToShow != null)
         {
