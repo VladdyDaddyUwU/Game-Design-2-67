@@ -88,9 +88,9 @@ public class MaterialLengthDisplay : MonoBehaviour
         
         // Format string
         // Using rich text for colors per section would be nice, but simple first.
-        string txt = $"7x7: {used7x7:F1}/{limit7x7:F0}m\n" +
-                     $"5x5: {used5x5:F1}/{limit5x5:F0}m\n" +
-                     $"3x3: {used3x3:F1}/{limit3x3:F0}m";
+        string txt = $"7x7: {used7x7:F1}m\n" +
+                     $"5x5: {used5x5:F1}m\n" +
+                     $"3x3: {used3x3:F1}m";
 
         bool exceeded = (used7x7 > limit7x7) || (used5x5 > limit5x5) || (used3x3 > limit3x3);
 

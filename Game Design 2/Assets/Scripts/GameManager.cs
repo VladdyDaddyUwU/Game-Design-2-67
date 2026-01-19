@@ -364,7 +364,8 @@ public class GameManager : MonoBehaviour
                 Vector3 dir = (p2 - p1).normalized;
                 Vector3 normal = new Vector3(-dir.y, dir.x, 0);
                 float offsetDistance = 0.15f;
-                labelObj.transform.position = mid + normal * offsetDistance;
+                // Offset by normal (above beam) AND direction (along beam to avoid intersection overlap)
+                labelObj.transform.position = mid + (normal * offsetDistance) + (dir * 0.4f);
                 float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
                 labelObj.transform.rotation = Quaternion.Euler(0, 0, angle);
 
@@ -459,6 +460,12 @@ public class GameManager : MonoBehaviour
         }
         
         Debug.Log("Undo: Removed last beam.");
+    }
+
+    public void SwitchToBuildMode()
+    {
+        currentMode = GameMode.Build;
+        ResetSimulation();
     }
 
     public void RestartLevel()

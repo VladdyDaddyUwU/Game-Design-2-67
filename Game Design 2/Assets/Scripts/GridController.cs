@@ -230,7 +230,8 @@ public class GridController : MonoBehaviour
                 
                 // Let's stick EXACTLY to the previous logic for available space to be safe, 
                 // assuming the user wants to fit it into that "Total - Cut" box.
-                float availableHeight_ForCalc = totalScreenHeight_World - cutAmount_World;
+                // UPDATED: Added extra margin (0.5 * cutAmount) to the top so stress labels don't get cut off.
+                float availableHeight_ForCalc = totalScreenHeight_World - (cutAmount_World * 1.1f);
 
                 // Calculate Cell Size to preserve Square Aspect Ratio
                 float sizeX = availableWidth_World / targetW;
