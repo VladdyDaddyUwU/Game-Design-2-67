@@ -262,9 +262,9 @@ public class UIManager : MonoBehaviour
         });
 
         RectTransform quitRect = quitBtnObj.GetComponent<RectTransform>();
-        quitRect.anchorMin = new Vector2(0.5f, 0.22f); 
-        quitRect.anchorMax = new Vector2(0.5f, 0.22f);
-        quitRect.sizeDelta = new Vector2(300, 60);
+        quitRect.anchorMin = new Vector2(0.5f, 0.10f); // Lowered to make room
+        quitRect.anchorMax = new Vector2(0.5f, 0.10f);
+        quitRect.sizeDelta = new Vector2(300, 50);
 
         GameObject quitTextObj = new GameObject("Text");
         quitTextObj.transform.SetParent(quitBtnObj.transform, false);
@@ -280,8 +280,42 @@ public class UIManager : MonoBehaviour
         quitTextRect.anchorMax = Vector2.one;
         quitTextRect.offsetMin = Vector2.zero; 
         quitTextRect.offsetMax = Vector2.zero;
+        
+        // --- MAIN MENU BUTTON (Added) ---
+        GameObject menuBtnObj = new GameObject("BtnMainMenu");
+        menuBtnObj.transform.SetParent(pauseMenuObj.transform, false);
+        Image menuImg = menuBtnObj.AddComponent<Image>();
+        menuImg.color = new Color(0.2f, 0.6f, 1f, 0.1f); 
+        Button menuBtn = menuBtnObj.AddComponent<Button>();
+        menuBtn.targetGraphic = menuImg;
+        menuBtn.onClick.AddListener(GoToMainMenu); 
+
+        RectTransform menuRect = menuBtnObj.GetComponent<RectTransform>();
+        menuRect.anchorMin = new Vector2(0.5f, 0.22f); // Above Quit
+        menuRect.anchorMax = new Vector2(0.5f, 0.22f);
+        menuRect.sizeDelta = new Vector2(300, 50);
+
+        GameObject menuTextObj = new GameObject("Text");
+        menuTextObj.transform.SetParent(menuBtnObj.transform, false);
+        Text menuText = menuTextObj.AddComponent<Text>();
+        menuText.text = "MAIN MENU";
+        menuText.font = workingFont;
+        menuText.fontSize = 24;
+        menuText.alignment = TextAnchor.MiddleCenter;
+        menuText.color = new Color(0.6f, 0.8f, 1f); 
+
+        RectTransform menuTextRect = menuTextObj.GetComponent<RectTransform>();
+        menuTextRect.anchorMin = Vector2.zero; 
+        menuTextRect.anchorMax = Vector2.one;
+        menuTextRect.offsetMin = Vector2.zero; 
+        menuTextRect.offsetMax = Vector2.zero;
 
         pauseMenuObj.SetActive(false);
+    }
+
+    public void GoToMainMenu()
+    {
+        UnityEngine.SceneManagement.SceneManager.LoadScene("MenuScene");
     }
 
     // Public method for external buttons (Settings/Menu button in Hierarchy)
