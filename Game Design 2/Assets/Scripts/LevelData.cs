@@ -45,6 +45,14 @@ public class LevelData : ScriptableObject
     [Header("Pre-built Structure")]
     [Tooltip("List of beams that exist at start. defined by start and end node coords")]
     public List<BeamDef> prebuiltBeams = new List<BeamDef>();
+
+    [Header("Star Rating Thresholds")]
+    [Tooltip("Maximum total length of meters allowed to earn 3 Stars")]
+    public float threeStarsLengthLimit = 30f;
+    [Tooltip("Maximum total length of meters allowed to earn 2 Stars")]
+    public float twoStarsLengthLimit = 50f;
+    [Tooltip("Maximum total length of meters allowed to earn 1 Star")]
+    public float oneStarLengthLimit = 100f;
 }
 
 [System.Serializable]

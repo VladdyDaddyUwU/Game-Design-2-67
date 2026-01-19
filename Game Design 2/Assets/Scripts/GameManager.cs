@@ -1184,7 +1184,9 @@ public class GameManager : MonoBehaviour
 
     IEnumerator LevelCompleteSequence()
     {
-        if (uiManager != null) uiManager.ShowLevelComplete();
+        int stars = CalculateStars();
+        if (uiManager != null) uiManager.ShowLevelComplete(stars);
+        
         if (levelCompleteSound != null)
         {
             audioSource.PlayOneShot(levelCompleteSound, levelCompleteVolume);
@@ -1201,6 +1203,26 @@ public class GameManager : MonoBehaviour
              levelManager.NextLevel();
         else
              RestartLevel(); 
+    }
+
+    public int CalculateStars()
+    {
+        if (gridController == null || gridController.currentLevel == null) return 3; 
+
+        float totalUsed = 0f;
+        // Sum of all used beam lengths
+        totalUsed += GetBeamLengthByArea(0.0049f); 
+        totalUsed += GetBeamLengthByArea(0.0025f); 
+        totalUsed += GetBeamLengthByArea(0.0009f); 
+        
+        var level = gridController.currentLevel;
+        
+        Debug.Log($"Level Complete! Total Material Used: {totalUsed:F1}m. Thresholds: {level.threeStarsLengthLimit}/{level.twoStarsLengthLimit}/{level.oneStarLengthLimit}");
+        
+        if (totalUsed <= level.threeStarsLengthLimit) return 3;
+        if (totalUsed <= level.twoStarsLengthLimit) return 2;
+        
+        return 1;
     }
 
     public StructuralAnalysis.AnalysisResult PerformAnalysis()

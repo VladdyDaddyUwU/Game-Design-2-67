@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
+using System.Collections.Generic;
 
 public class UIManager : MonoBehaviour
 {
@@ -12,10 +13,30 @@ public class UIManager : MonoBehaviour
     private Text levelCompleteText; // Missing field declaration
     private AudioSource audioSource;
     private AudioClip buttonClickSound;
+    
+    [Header("Assets")]
+    public Sprite starSprite; // Assign in Inspector or load
+    private List<Image> starImages = new List<Image>();
 
     void Start()
     {
         levelManager = FindObjectOfType<LevelManager>();
+        
+        #if UNITY_EDITOR
+        if (starSprite == null)
+        {
+            string path = "Assets/Levels/star.png";
+            starSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            if (starSprite == null)
+            {
+                 // Fallback texture loading if Sprite load fails
+                 Texture2D tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                 if (tex != null)
+                     starSprite = Sprite.Create(tex, new Rect(0,0,tex.width,tex.height), new Vector2(0.5f,0.5f));
+            }
+        }
+        #endif
+
         SetupUI();
         SetupPauseMenu(); 
         SetupLevelSelectMenu(); // Build the secondary menu
@@ -57,6 +78,9 @@ public class UIManager : MonoBehaviour
         {
             panelObj = existingPanel.gameObject;
             levelCompleteText = panelObj.GetComponentInChildren<Text>();
+            // Attempt to find existing stars if re-running
+            starImages.Clear();
+            foreach(Transform child in panelObj.transform) { if(child.name.StartsWith("Star")) starImages.Add(child.GetComponent<Image>()); }
         }
         else
         {
@@ -65,14 +89,14 @@ public class UIManager : MonoBehaviour
             
             // Background Image
             Image bg = panelObj.AddComponent<Image>();
-            bg.color = new Color(0.1f, 0.1f, 0.1f, 0.85f); // Dark semi-transparent
+            bg.color = new Color(0.1f, 0.1f, 0.1f, 0.95f); 
             
             // RectTransform positioning (Center, fairly large)
             RectTransform rect = panelObj.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(600, 200);
+            rect.sizeDelta = new Vector2(500, 350); // Taller to fit stars
 
             // 3. Create Text
             GameObject textObj = new GameObject("Text");
@@ -80,23 +104,46 @@ public class UIManager : MonoBehaviour
             
             levelCompleteText = textObj.AddComponent<Text>();
             levelCompleteText.text = "LEVEL COMPLETED!";
-            levelCompleteText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); // Standard Unity font
-            levelCompleteText.fontSize = 50;
+            levelCompleteText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); 
+            levelCompleteText.fontSize = 45;
             levelCompleteText.fontStyle = FontStyle.Bold;
-            levelCompleteText.alignment = TextAnchor.MiddleCenter;
-            levelCompleteText.color = new Color(1f, 0.84f, 0f); // Gold Color
+            levelCompleteText.alignment = TextAnchor.UpperCenter;
+            levelCompleteText.color = new Color(1f, 0.84f, 0f); 
             
-            // Add Shadow for style
             Shadow shadow = textObj.AddComponent<Shadow>();
             shadow.effectColor = new Color(0, 0, 0, 0.8f);
             shadow.effectDistance = new Vector2(3, -3);
 
-            // Text Rect
             RectTransform textRect = textObj.GetComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one; // Stretch to fill panel
+            textRect.anchorMin = new Vector2(0, 0.7f);
+            textRect.anchorMax = new Vector2(1, 0.95f);
             textRect.offsetMin = Vector2.zero;
             textRect.offsetMax = Vector2.zero;
+            
+            // 4. Create Stars Container
+            GameObject starsHolder = new GameObject("StarsHolder");
+            starsHolder.transform.SetParent(panelObj.transform, false);
+            RectTransform starsRect = starsHolder.AddComponent<RectTransform>();
+            starsRect.anchorMin = new Vector2(0.1f, 0.3f);
+            starsRect.anchorMax = new Vector2(0.9f, 0.6f);
+            starsRect.offsetMin = Vector2.zero; starsRect.offsetMax = Vector2.zero;
+            
+            HorizontalLayoutGroup hlg = starsHolder.AddComponent<HorizontalLayoutGroup>();
+            hlg.childAlignment = TextAnchor.MiddleCenter;
+            hlg.spacing = 20;
+            hlg.childControlHeight = true; hlg.childControlWidth = true;
+
+            starImages.Clear();
+            for(int i=0; i<3; i++)
+            {
+                GameObject s = new GameObject($"Star_{i+1}");
+                s.transform.SetParent(starsHolder.transform, false);
+                Image img = s.AddComponent<Image>();
+                if (starSprite != null) img.sprite = starSprite;
+                img.color = Color.black; // Default off
+                img.preserveAspect = true;
+                starImages.Add(img);
+            }
         }
 
         // Start hidden
@@ -511,11 +558,24 @@ public class UIManager : MonoBehaviour
         return isPaused;
     }
 
-    public void ShowLevelComplete()
+    public void ShowLevelComplete(int starCount)
     {
         if (panelObj != null)
         {
             panelObj.SetActive(true);
+            
+            // Update Stars
+            Color gold = new Color(1f, 0.84f, 0f);
+            Color dark = new Color(0.1f, 0.1f, 0.1f);
+            
+            for(int i=0; i<starImages.Count; i++)
+            {
+                if (starImages[i] != null)
+                {
+                    starImages[i].color = (i < starCount) ? gold : dark;
+                }
+            }
+
             // Optional: Simple pop-in animation effect
             panelObj.transform.localScale = Vector3.zero;
             StartCoroutine(AnimatePopIn());
