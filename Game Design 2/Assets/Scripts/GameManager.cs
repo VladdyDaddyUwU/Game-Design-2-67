@@ -406,16 +406,27 @@ public class GameManager : MonoBehaviour
                         string sign = (force < 0) ? "-" : "";
                         tm.text = $"{sign}{Mathf.RoundToInt(percentage)}%";
                         
-                        // Color Code
-                        if (force < 0)
-                        {
-                            tm.color = percentage >= 100f ? Color.red : new Color(1f, 0.4f, 0.4f); 
-                        }
-                        else
-                        {
-                            tm.color = percentage >= 100f ? Color.blue : new Color(0.4f, 0.4f, 1f); 
-                        }
-                    }
+                                                                // Color Code: Ultra-dark shades for maximum contrast on light background
+                        
+                                                                if (force < 0)
+                        
+                                                                {
+                        
+                                                                    // Compression: Extremely Dark Red
+                        
+                                                                    tm.color = percentage >= 100f ? new Color(0.6f, 0f, 0f) : new Color(0.35f, 0f, 0f); 
+                        
+                                                                }
+                        
+                                                                else
+                        
+                                                                {
+                        
+                                                                    // Tension: Extremely Dark Blue
+                        
+                                                                    tm.color = percentage >= 100f ? new Color(0f, 0f, 0.6f) : new Color(0f, 0f, 0.35f); 
+                        
+                                                                }                    }
                     else
                     {
                         tm.text = "UNSTABLE";
