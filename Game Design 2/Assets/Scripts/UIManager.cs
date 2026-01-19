@@ -22,20 +22,15 @@ public class UIManager : MonoBehaviour
     {
         levelManager = FindObjectOfType<LevelManager>();
         
-        #if UNITY_EDITOR
+        // Load Star Sprite from Resources
         if (starSprite == null)
         {
-            string path = "Assets/Levels/star.png";
-            starSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            starSprite = Resources.Load<Sprite>("star");
             if (starSprite == null)
             {
-                 // Fallback texture loading if Sprite load fails
-                 Texture2D tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-                 if (tex != null)
-                     starSprite = Sprite.Create(tex, new Rect(0,0,tex.width,tex.height), new Vector2(0.5f,0.5f));
+                 Debug.LogWarning("Star sprite not found in Resources/star");
             }
         }
-        #endif
 
         SetupUI();
         SetupPauseMenu(); 

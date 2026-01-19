@@ -782,13 +782,13 @@ public class GameManager : MonoBehaviour
 
             SpriteRenderer sr = anvilInstance.AddComponent<SpriteRenderer>();
             
-            #if UNITY_EDITOR
-            string path = "Assets/Levels/anvil.png";
-            Sprite customAnvil = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            // Try to load from Resources as Sprite
+            Sprite customAnvil = Resources.Load<Sprite>("anvil");
 
+            // If Sprite load failed (e.g. wrong import settings), try loading as Texture2D
             if (customAnvil == null)
             {
-                Texture2D tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                Texture2D tex = Resources.Load<Texture2D>("anvil");
                 if (tex != null)
                 {
                     customAnvil = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
@@ -802,13 +802,10 @@ public class GameManager : MonoBehaviour
             }
             else
             {
+                // Fallback to procedural square
                 sr.sprite = CreateSquareSprite();
                 sr.color = Color.black;
             }
-            #else
-            sr.sprite = CreateSquareSprite();
-            sr.color = Color.black;
-            #endif
             
             sr.sortingOrder = 5;
         }
