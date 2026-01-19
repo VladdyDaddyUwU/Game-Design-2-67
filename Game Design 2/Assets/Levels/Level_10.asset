@@ -31,6 +31,6 @@ MonoBehaviour:
     width: 3
     height: 3
   prebuiltBeams: []
-  threeStarsLengthLimit: 23
-  twoStarsLengthLimit: 17.1
+  threeStarsLengthLimit: 17.1
+  twoStarsLengthLimit: 22.9
   oneStarLengthLimit: 100
