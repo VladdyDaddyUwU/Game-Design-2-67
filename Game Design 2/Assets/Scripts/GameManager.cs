@@ -1504,6 +1504,23 @@ public class GameManager : MonoBehaviour
                 rope.enableCollision = false;
             }
         }
+
+        // 4. Enable Human Physics
+        if (humanInstance != null)
+        {
+            Rigidbody2D humanRb = humanInstance.GetComponent<Rigidbody2D>();
+            if (humanRb == null) humanRb = humanInstance.AddComponent<Rigidbody2D>();
+            humanRb.mass = 80f; 
+            humanRb.linearDamping = 0.5f;
+            humanRb.angularDamping = 0.5f;
+            humanRb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            
+            CapsuleCollider2D humanCol = humanInstance.GetComponent<CapsuleCollider2D>();
+            if (humanCol == null) humanCol = humanInstance.AddComponent<CapsuleCollider2D>();
+            // If the sprite is scaled, the collider usually scales with transform, 
+            // but we ensure it fits a "standing" aspect ratio.
+            humanCol.direction = CapsuleDirection2D.Vertical;
+        }
     }
 
     private void HideOriginalBeamVisual(Node n1, Node n2)
