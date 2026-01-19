@@ -12,9 +12,17 @@ public class DialogueManager : MonoBehaviour
     [Tooltip("If left empty, it will search children for a TMP component")]
     public TMP_Text dialogueText;
 
+    [System.Serializable]
+    public class DialogueLine
+    {
+        [TextArea(3, 10)]
+        public string text;
+        [Tooltip("Optional: The visual object (Photo/Anim) to show during this line")]
+        public GameObject visualToShow;
+    }
+
     [Header("Dialogue Content")]
-    [TextArea(3, 10)]
-    public List<string> lines = new List<string>();
+    public List<DialogueLine> lines = new List<DialogueLine>();
 
     [Header("Settings")]
     public float typingSpeed = 0.03f;
@@ -74,8 +82,15 @@ public class DialogueManager : MonoBehaviour
     {
         currentLineIndex = index;
         dialogueText.text = ""; 
+        
+        // Show Visual for this line
+        if (lines[index].visualToShow != null)
+        {
+            lines[index].visualToShow.SetActive(true);
+        }
+
         if (typingCoroutine != null) StopCoroutine(typingCoroutine);
-        typingCoroutine = StartCoroutine(TypeLine(lines[index]));
+        typingCoroutine = StartCoroutine(TypeLine(lines[index].text));
     }
 
     IEnumerator TypeLine(string line)
@@ -95,12 +110,18 @@ public class DialogueManager : MonoBehaviour
     void FinishLineInstantly()
     {
         if (typingCoroutine != null) StopCoroutine(typingCoroutine);
-        dialogueText.text = lines[currentLineIndex];
+        dialogueText.text = lines[currentLineIndex].text;
         isTyping = false;
     }
 
     void NextLine()
     {
+        // Hide Visual from the PREVIOUS line before moving on
+        if (lines[currentLineIndex].visualToShow != null)
+        {
+            lines[currentLineIndex].visualToShow.SetActive(false);
+        }
+
         currentLineIndex++;
         if (currentLineIndex < lines.Count)
         {
@@ -120,6 +141,12 @@ public class DialogueManager : MonoBehaviour
     // Public method if you want to trigger dialogue from other scripts
     public void ResetAndStart()
     {
+        // Ensure any active visual is hidden before restarting
+        if (currentLineIndex < lines.Count && lines[currentLineIndex].visualToShow != null)
+        {
+            lines[currentLineIndex].visualToShow.SetActive(false);
+        }
+
         currentLineIndex = 0;
         if (lines.Count > 0)
         {
