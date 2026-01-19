@@ -31,6 +31,10 @@ public class MaterialSelector : MonoBehaviour
     private Color originalColor5x5 = Color.black;
     private Color originalColor3x3 = Color.black;
 
+    private Image frame1, frame2, frame3;
+    private Color originalFrameColor = Color.white;
+    private Color highlightColor = new Color(249f/255f, 233f/255f, 155f/255f); // Gold-ish
+
     void Start()
     {
         if (gameManager == null) gameManager = FindObjectOfType<GameManager>();
@@ -48,6 +52,13 @@ public class MaterialSelector : MonoBehaviour
         FindLabels(material2_5x5, ref label5x5, ref legacyLabel5x5, ref originalColor5x5);
         FindLabels(material3_3x3, ref label3x3, ref legacyLabel3x3, ref originalColor3x3);
 
+        // 3. Find Metal Frames for highlighting
+        frame1 = FindFrame(material1_7x7);
+        frame2 = FindFrame(material2_5x5);
+        frame3 = FindFrame(material3_3x3);
+
+        if (frame1 != null) originalFrameColor = frame1.color; // Assume all start same
+
         // Debug: Report status
         Debug.Log($"[MaterialSelector Setup] Found Material 1: {(material1_7x7 != null ? material1_7x7.name : "NULL")}");
         Debug.Log($"[MaterialSelector Setup] Found Material 2: {(material2_5x5 != null ? material2_5x5.name : "NULL")}");
@@ -55,6 +66,19 @@ public class MaterialSelector : MonoBehaviour
 
         // Optional: Initial Highlight
         HighlightButton(areaMedium);
+    }
+
+    Image FindFrame(GameObject parent)
+    {
+        if (parent == null) return null;
+        // Look for Canvas/Metal Frame pattern
+        Transform canvas = parent.transform.Find("Canvas");
+        if (canvas != null)
+        {
+            Transform frame = canvas.Find("Metal Frame");
+            if (frame != null) return frame.GetComponent<Image>();
+        }
+        return null;
     }
 
     void FindLabels(GameObject parent, ref TMP_Text tmpLabel, ref Text legacyLabel, ref Color originalColor)
@@ -228,19 +252,16 @@ public class MaterialSelector : MonoBehaviour
 
     void HighlightButton(float activeArea)
     {
-        SetButtonColor(material1_7x7, activeArea == areaLarge);
-        SetButtonColor(material2_5x5, activeArea == areaMedium);
-        SetButtonColor(material3_3x3, activeArea == areaSmall);
+        SetFrameColor(frame1, activeArea == areaLarge);
+        SetFrameColor(frame2, activeArea == areaMedium);
+        SetFrameColor(frame3, activeArea == areaSmall);
     }
 
-    void SetButtonColor(GameObject obj, bool isActive)
+    void SetFrameColor(Image frame, bool isActive)
     {
-        if (obj == null) return;
-        SpriteRenderer sr = obj.GetComponent<SpriteRenderer>();
-        if (sr != null)
+        if (frame != null)
         {
-            // Green tint if active, White (default) if inactive
-            sr.color = isActive ? new Color(0.2f, 1f, 0.2f, 1f) : Color.white;
+            frame.color = isActive ? highlightColor : originalFrameColor;
         }
     }
 }
