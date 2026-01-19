@@ -17,7 +17,7 @@ MonoBehaviour:
   limit7x7: 20
   limit5x5: 20
   limit3x3: 20
-  humanScale: 0.5
+  humanScale: 3
   anvilScale: 0.3
   anvilRopeLength: 1
   anchorCoords:
@@ -27,9 +27,9 @@ MonoBehaviour:
   loadMass: 20000
   deadZones:
   - x: 1
-    y: 0
-    width: 2
-    height: 2
+    y: -1
+    width: 3
+    height: 3
   - x: -1
     y: -1
     width: 3

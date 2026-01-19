@@ -17,7 +17,7 @@ MonoBehaviour:
   limit7x7: 20
   limit5x5: 20
   limit3x3: 20
-  humanScale: 0.5
+  humanScale: 3
   anvilScale: 0.25
   anvilRopeLength: 0.6
   anchorCoords:
