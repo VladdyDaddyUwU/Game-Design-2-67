@@ -145,118 +145,69 @@ public class UIManager : MonoBehaviour
         titleRect.sizeDelta = new Vector2(600, 150);
         titleRect.anchoredPosition = Vector2.zero;
 
-                    // --- LEFT COLUMN (BUILDING) ---
+        // --- CONTROLS HEADER ---
+        GameObject controlsHeader = new GameObject("ControlsHeader");
+        controlsHeader.transform.SetParent(pauseMenuObj.transform, false);
+        Text controlsText = controlsHeader.AddComponent<Text>();
+        controlsText.text = "<b>Controls</b>";
+        controlsText.font = workingFont;
+        controlsText.fontSize = 30;
+        controlsText.alignment = TextAnchor.MiddleCenter;
+        controlsText.color = Color.white;
+        controlsText.supportRichText = true;
 
-                    GameObject buildInfo = new GameObject("InfoBuilding");
+        RectTransform headerRect = controlsHeader.GetComponent<RectTransform>();
+        headerRect.anchorMin = new Vector2(0.5f, 0.7f); // Back to original
+        headerRect.anchorMax = new Vector2(0.5f, 0.7f);
+        headerRect.sizeDelta = new Vector2(400, 50);
+        headerRect.anchoredPosition = Vector2.zero;
 
-                    buildInfo.transform.SetParent(pauseMenuObj.transform, false);
+        // --- LEFT INSTRUCTION ---
+        GameObject leftInst = new GameObject("InstructionLeft");
+        leftInst.transform.SetParent(pauseMenuObj.transform, false);
+        Text leftText = leftInst.AddComponent<Text>();
+        leftText.text = "Left Drag from joints: Build";
+        leftText.font = workingFont;
+        leftText.fontSize = 22;
+        leftText.alignment = TextAnchor.MiddleCenter; 
+        leftText.color = new Color(0.9f, 0.9f, 0.9f);
+        leftText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        leftText.verticalOverflow = VerticalWrapMode.Overflow;
 
-                    Text buildText = buildInfo.AddComponent<Text>();
+        RectTransform leftRect = leftInst.GetComponent<RectTransform>();
+        leftRect.anchorMin = new Vector2(0.1f, 0.62f); // Shrunk height to remove gap
+        leftRect.anchorMax = new Vector2(0.45f, 0.66f); 
+        leftRect.offsetMin = Vector2.zero; leftRect.offsetMax = Vector2.zero;
 
-                    buildText.text = "<b>BUILDING</b>\n\nLeft Drag: Place\nRight Click: Delete\nZ: Undo Last\nR: Clear Level\nHold 'O': Stress";
+        // --- RIGHT INSTRUCTION ---
+        GameObject rightInst = new GameObject("InstructionRight");
+        rightInst.transform.SetParent(pauseMenuObj.transform, false);
+        Text rightText = rightInst.AddComponent<Text>();
+        rightText.text = "Hold O: See Tensions";
+        rightText.font = workingFont;
+        rightText.fontSize = 22;
+        rightText.alignment = TextAnchor.MiddleCenter;
+        rightText.color = new Color(0.9f, 0.9f, 0.9f);
+        rightText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        rightText.verticalOverflow = VerticalWrapMode.Overflow;
 
-                    buildText.font = workingFont;
-
-                    buildText.fontSize = 22;
-
-                    buildText.lineSpacing = 1.2f;
-
-                    buildText.alignment = TextAnchor.UpperCenter;
-
-                    buildText.color = new Color(0.9f, 0.9f, 0.9f);
-
-                    buildText.supportRichText = true;
-
-                    
-
-                    RectTransform buildRect = buildInfo.GetComponent<RectTransform>();
-
-                    buildRect.anchorMin = new Vector2(0.1f, 0.5f);
-
-                    buildRect.anchorMax = new Vector2(0.35f, 0.7f);
-
-                    buildRect.offsetMin = Vector2.zero; buildRect.offsetMax = Vector2.zero;
-
-            
-
-                    // --- CENTER COLUMN (SYSTEM) ---
-
-                    GameObject sysInfo = new GameObject("InfoSystem");
-
-                    sysInfo.transform.SetParent(pauseMenuObj.transform, false);
-
-                    Text sysText = sysInfo.AddComponent<Text>();
-
-                    sysText.text = "<b>SYSTEM</b>\n\nX: Pause / Resume";
-
-                    sysText.font = workingFont;
-
-                    sysText.fontSize = 22;
-
-                    sysText.lineSpacing = 1.2f;
-
-                    sysText.alignment = TextAnchor.UpperCenter;
-
-                    sysText.color = new Color(0.9f, 0.9f, 0.9f);
-
-                    sysText.supportRichText = true;
-
-            
-
-                    RectTransform sysRect = sysInfo.GetComponent<RectTransform>();
-
-                    sysRect.anchorMin = new Vector2(0.375f, 0.5f);
-
-                    sysRect.anchorMax = new Vector2(0.625f, 0.7f);
-
-                    sysRect.offsetMin = Vector2.zero; sysRect.offsetMax = Vector2.zero;
-
-            
-
-                    // --- RIGHT COLUMN (SIMULATION) ---
-
-                    GameObject simInfo = new GameObject("InfoSimulation");
-
-                    simInfo.transform.SetParent(pauseMenuObj.transform, false);
-
-                    Text simText = simInfo.AddComponent<Text>();
-
-                    simText.text = "<b>SIMULATION</b>\nS: Run Simulation \nB: Back to Build";
-
-                    simText.font = workingFont;
-
-                    simText.fontSize = 22;
-
-                    simText.lineSpacing = 1.2f;
-
-                    simText.alignment = TextAnchor.UpperCenter;
-
-                    simText.color = new Color(0.9f, 0.9f, 0.9f);
-
-                    simText.supportRichText = true;
-
-            
-
-                    RectTransform simRect = simInfo.GetComponent<RectTransform>();
-
-                    simRect.anchorMin = new Vector2(0.65f, 0.5f);
-
-                    simRect.anchorMax = new Vector2(0.9f, 0.7f);
-
-                    simRect.offsetMin = Vector2.zero; simRect.offsetMax = Vector2.zero;
+        RectTransform rightRect = rightInst.GetComponent<RectTransform>();
+        rightRect.anchorMin = new Vector2(0.55f, 0.62f); // Shrunk height to remove gap
+        rightRect.anchorMax = new Vector2(0.9f, 0.66f); 
+        rightRect.offsetMin = Vector2.zero; rightRect.offsetMax = Vector2.zero;
 
         // --- RESUME BUTTON ---
         GameObject resumeBtnObj = new GameObject("BtnResume");
         resumeBtnObj.transform.SetParent(pauseMenuObj.transform, false);
         Image resumeImg = resumeBtnObj.AddComponent<Image>();
-        resumeImg.color = new Color(0.2f, 0.8f, 0.2f, 0.3f); // Greenish tint
+        resumeImg.color = new Color(0.2f, 0.8f, 0.2f, 0.3f); 
         Button resumeBtn = resumeBtnObj.AddComponent<Button>();
         resumeBtn.targetGraphic = resumeImg;
-        resumeBtn.onClick.AddListener(TogglePauseMenu); // Close menu = Resume
+        resumeBtn.onClick.AddListener(TogglePauseMenu); 
 
         RectTransform resumeRect = resumeBtnObj.GetComponent<RectTransform>();
-        resumeRect.anchorMin = new Vector2(0.5f, 0.35f);
-        resumeRect.anchorMax = new Vector2(0.5f, 0.35f);
+        resumeRect.anchorMin = new Vector2(0.5f, 0.52f); // Sitting close to instructions
+        resumeRect.anchorMax = new Vector2(0.5f, 0.52f);
         resumeRect.sizeDelta = new Vector2(300, 60);
 
         GameObject resumeTxtObj = new GameObject("Text");
@@ -272,7 +223,7 @@ public class UIManager : MonoBehaviour
         resumeTxtObj.GetComponent<RectTransform>().offsetMin = Vector2.zero;
         resumeTxtObj.GetComponent<RectTransform>().offsetMax = Vector2.zero;
 
-        // --- CHANGE LEVEL BUTTON (Adjusted Position) ---
+        // --- CHANGE LEVEL BUTTON ---
         GameObject btnObj = new GameObject("BtnChangeLevel");
         btnObj.transform.SetParent(pauseMenuObj.transform, false);
         Image btnImg = btnObj.AddComponent<Image>();
@@ -282,8 +233,8 @@ public class UIManager : MonoBehaviour
         btn.onClick.AddListener(ShowLevelSelect); 
 
         RectTransform btnRect = btnObj.GetComponent<RectTransform>();
-        btnRect.anchorMin = new Vector2(0.5f, 0.2f);
-        btnRect.anchorMax = new Vector2(0.5f, 0.2f);
+        btnRect.anchorMin = new Vector2(0.5f, 0.37f); 
+        btnRect.anchorMax = new Vector2(0.5f, 0.37f);
         btnRect.sizeDelta = new Vector2(300, 60);
 
         GameObject btnTextObj = new GameObject("Text");
@@ -297,6 +248,38 @@ public class UIManager : MonoBehaviour
         RectTransform btnTextRect = btnTextObj.GetComponent<RectTransform>();
         btnTextRect.anchorMin = Vector2.zero; btnTextRect.anchorMax = Vector2.one;
         btnTextRect.offsetMin = Vector2.zero; btnTextRect.offsetMax = Vector2.zero;
+
+        // --- QUIT GAME BUTTON ---
+        GameObject quitBtnObj = new GameObject("BtnQuit");
+        quitBtnObj.transform.SetParent(pauseMenuObj.transform, false);
+        Image quitImg = quitBtnObj.AddComponent<Image>();
+        quitImg.color = new Color(1f, 0.2f, 0.2f, 0.1f); 
+        Button quitBtn = quitBtnObj.AddComponent<Button>();
+        quitBtn.targetGraphic = quitImg;
+        quitBtn.onClick.AddListener(() => {
+            Debug.Log("Quit Game pressed.");
+            Application.Quit();
+        });
+
+        RectTransform quitRect = quitBtnObj.GetComponent<RectTransform>();
+        quitRect.anchorMin = new Vector2(0.5f, 0.22f); 
+        quitRect.anchorMax = new Vector2(0.5f, 0.22f);
+        quitRect.sizeDelta = new Vector2(300, 60);
+
+        GameObject quitTextObj = new GameObject("Text");
+        quitTextObj.transform.SetParent(quitBtnObj.transform, false);
+        Text quitText = quitTextObj.AddComponent<Text>();
+        quitText.text = "QUIT GAME";
+        quitText.font = workingFont;
+        quitText.fontSize = 24;
+        quitText.alignment = TextAnchor.MiddleCenter;
+        quitText.color = new Color(1f, 0.4f, 0.4f); // Light Red
+        
+        RectTransform quitTextRect = quitTextObj.GetComponent<RectTransform>();
+        quitTextRect.anchorMin = Vector2.zero; 
+        quitTextRect.anchorMax = Vector2.one;
+        quitTextRect.offsetMin = Vector2.zero; 
+        quitTextRect.offsetMax = Vector2.zero;
 
         pauseMenuObj.SetActive(false);
     }
