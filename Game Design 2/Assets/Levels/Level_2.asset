@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   gridWidth: 1
   gridHeight: 3
-  limit7x7: 20
-  limit5x5: 20
-  limit3x3: 20
+  limit7x7: 0
+  limit5x5: 1.5
+  limit3x3: 0
   humanScale: 3
   anvilScale: 0.3
   anvilRopeLength: 0.8

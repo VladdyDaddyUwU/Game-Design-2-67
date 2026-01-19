@@ -14,21 +14,24 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   gridWidth: 14
   gridHeight: 7
-  limit7x7: 20
-  limit5x5: 20
-  limit3x3: 20
+  limit7x7: 100
+  limit5x5: 100
+  limit3x3: 100
   humanScale: 3
   anvilScale: 0.2
   anvilRopeLength: 0.5
   anchorCoords:
   - {x: 0, y: 0}
   - {x: 1, y: 0}
-  - {x: 7, y: 0}
+  - {x: 2, y: 0}
+  - {x: 3, y: 0}
+  - {x: 4, y: 0}
+  - {x: 5, y: 0}
   - {x: 6, y: 0}
+  - {x: 7, y: 0}
   - {x: 8, y: 0}
   - {x: 9, y: 0}
-  - {x: 10, y: 7}
-  - {x: 12, y: 7}
+  - {x: 10, y: 0}
   loadNodeCoords: {x: 11, y: 3}
   loadMass: 120000
   deadZones:
