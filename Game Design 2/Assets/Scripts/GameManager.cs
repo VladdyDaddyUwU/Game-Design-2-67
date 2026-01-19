@@ -169,6 +169,22 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    [Header("Visualization Toggles")]
+    public bool showCompressionOnly = false;
+    public bool showTensionOnly = false;
+
+    public void ToggleCompressionView()
+    {
+        showCompressionOnly = !showCompressionOnly;
+        if (showCompressionOnly) showTensionOnly = false; // Exclusive
+    }
+
+    public void ToggleTensionView()
+    {
+        showTensionOnly = !showTensionOnly;
+        if (showTensionOnly) showCompressionOnly = false; // Exclusive
+    }
+
     void Update()
     {
         // Pause Menu Toggle (X)
@@ -216,8 +232,9 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // Visualize Stress Percentages (O)
-        if (Input.GetKey(KeyCode.O))
+        // Visualize Stress Percentages (O or Toggles)
+        bool isOHeld = Input.GetKey(KeyCode.O);
+        if (isOHeld || showCompressionOnly || showTensionOnly)
         {
             // If we are in build mode, we calculate on the fly (Predictive)
             if (currentMode == GameMode.Build)
@@ -354,44 +371,56 @@ public class GameManager : MonoBehaviour
                     tm = labelObj.GetComponent<TextMesh>();
                 }
 
-                labelObj.SetActive(true);
-                
-                // Positioning logic (always needed)
-                Vector3 p1 = n1.transform.position;
-                Vector3 p2 = n2.transform.position;
-                if (p1.x > p2.x) { Vector3 temp = p1; p1 = p2; p2 = temp; }
-                Vector3 mid = (p1 + p2) / 2f;
-                Vector3 dir = (p2 - p1).normalized;
-                Vector3 normal = new Vector3(-dir.y, dir.x, 0);
-                float offsetDistance = 0.15f;
-                // Offset by normal (above beam) AND direction (along beam to avoid intersection overlap)
-                labelObj.transform.position = mid + (normal * offsetDistance) + (dir * 0.4f);
-                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-                labelObj.transform.rotation = Quaternion.Euler(0, 0, angle);
-
+                bool shouldShow = true;
                 if (isDataValid)
                 {
-                    float percentage = lastAnalysisResult.MemberStressPercentages[i];
                     float force = lastAnalysisResult.MemberForces[i];
+                    // Filtering Logic
+                    if (showCompressionOnly && force >= 0) shouldShow = false; // Hide if Tension
+                    if (showTensionOnly && force <= 0) shouldShow = false; // Hide if Compression
+                }
 
-                    // Visual logic: minus sign for compression
-                    string sign = (force < 0) ? "-" : "";
-                    tm.text = $"{sign}{Mathf.RoundToInt(percentage)}%";
-                    
-                    // Color Code
-                    if (force < 0)
+                labelObj.SetActive(shouldShow);
+                
+                if (shouldShow)
+                {
+                    // Positioning logic (always needed)
+                    Vector3 p1 = n1.transform.position;
+                    Vector3 p2 = n2.transform.position;
+                    if (p1.x > p2.x) { Vector3 temp = p1; p1 = p2; p2 = temp; }
+                    Vector3 mid = (p1 + p2) / 2f;
+                    Vector3 dir = (p2 - p1).normalized;
+                    Vector3 normal = new Vector3(-dir.y, dir.x, 0);
+                    float offsetDistance = 0.15f;
+                    // Offset by normal (above beam) AND direction (along beam to avoid intersection overlap)
+                    labelObj.transform.position = mid + (normal * offsetDistance) + (dir * 0.4f);
+                    float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+                    labelObj.transform.rotation = Quaternion.Euler(0, 0, angle);
+
+                    if (isDataValid)
                     {
-                        tm.color = percentage >= 100f ? Color.red : new Color(1f, 0.4f, 0.4f); 
+                        float percentage = lastAnalysisResult.MemberStressPercentages[i];
+                        float force = lastAnalysisResult.MemberForces[i];
+
+                        // Visual logic: minus sign for compression
+                        string sign = (force < 0) ? "-" : "";
+                        tm.text = $"{sign}{Mathf.RoundToInt(percentage)}%";
+                        
+                        // Color Code
+                        if (force < 0)
+                        {
+                            tm.color = percentage >= 100f ? Color.red : new Color(1f, 0.4f, 0.4f); 
+                        }
+                        else
+                        {
+                            tm.color = percentage >= 100f ? Color.blue : new Color(0.4f, 0.4f, 1f); 
+                        }
                     }
                     else
                     {
-                        tm.color = percentage >= 100f ? Color.blue : new Color(0.4f, 0.4f, 1f); 
+                        tm.text = "UNSTABLE";
+                        tm.color = Color.red;
                     }
-                }
-                else
-                {
-                    tm.text = "UNSTABLE";
-                    tm.color = Color.red;
                 }
             }
         }
