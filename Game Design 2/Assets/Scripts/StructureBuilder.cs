@@ -88,6 +88,26 @@ public class StructureBuilder : MonoBehaviour
         tempLine.SetPosition(0, startNode.transform.position);
     }
 
+    private bool CheckMaterialAvailability(Node n1, Node n2)
+    {
+        if (gameManager == null) return true;
+
+        float currentArea = gameManager.currentCrossSectionArea;
+        float limit = gameManager.GetMaterialLimit(currentArea);
+        float used = gameManager.GetBeamLengthByArea(currentArea);
+
+        // Calculate potential length using grid indices (Logical Distance)
+        float dx = n1.x_index - n2.x_index;
+        float dy = n1.y_index - n2.y_index;
+        float newLength = Mathf.Sqrt(dx * dx + dy * dy);
+
+        if (used + newLength > limit)
+        {
+            return false;
+        }
+        return true;
+    }
+
     private void UpdateDrawing()
     {
         Vector3 mousePos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
@@ -124,6 +144,11 @@ public class StructureBuilder : MonoBehaviour
         }
         // 4. Dead Zone Check
         else if (gameManager.gridController != null && gameManager.gridController.IsSegmentIntersectingDeadZone(startNode.transform.position, endNode.transform.position))
+        {
+            isValid = false;
+        }
+        // 5. Material Limit Check
+        else if (!CheckMaterialAvailability(startNode, endNode))
         {
             isValid = false;
         }
@@ -169,6 +194,14 @@ public class StructureBuilder : MonoBehaviour
         if (gameManager.gridController != null && gameManager.gridController.IsSegmentIntersectingDeadZone(startNode.transform.position, endNode.transform.position))
         {
             Debug.LogWarning("Cannot build through the restricted area (Dead Zone).");
+            if (incorrectPlacementSound != null) audioSource.PlayOneShot(incorrectPlacementSound, incorrectPlacementVolume);
+            return;
+        }
+
+        // Material Limit Check
+        if (!CheckMaterialAvailability(startNode, endNode))
+        {
+            Debug.LogWarning("Not enough material!");
             if (incorrectPlacementSound != null) audioSource.PlayOneShot(incorrectPlacementSound, incorrectPlacementVolume);
             return;
         }

@@ -14,10 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   gridWidth: 4
   gridHeight: 4
-  maxMaterialLength: 20
+  limit7x7: 20
+  limit5x5: 20
+  limit3x3: 20
   humanScale: 0.5
-  anvilScale: 0.8
-  anvilRopeLength: 0.7
+  anvilScale: 0.25
+  anvilRopeLength: 0.6
   anchorCoords:
   - {x: 0, y: 0}
   - {x: 2, y: 0}

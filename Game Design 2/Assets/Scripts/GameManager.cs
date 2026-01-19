@@ -277,8 +277,35 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    private GameObject anvilLabelObj;
+
     public void ShowStressLabels()
     {
+        // --- Anvil Mass Label ---
+        if (anvilInstance != null)
+        {
+            if (anvilLabelObj == null)
+            {
+                anvilLabelObj = new GameObject("AnvilMassLabel");
+                anvilLabelObj.transform.SetParent(this.transform); // Keep it clean
+                TextMesh tm = anvilLabelObj.AddComponent<TextMesh>();
+                tm.characterSize = 0.05f;
+                tm.fontSize = 60;
+                tm.anchor = TextAnchor.LowerCenter;
+                tm.alignment = TextAlignment.Center;
+                tm.color = Color.white;
+            }
+
+            anvilLabelObj.SetActive(true);
+            // Position above the anvil
+            float offset = 1.0f; 
+            if (gridController != null && gridController.currentLevel != null) 
+                offset = gridController.currentLevel.anvilScale + 0.5f;
+                
+            anvilLabelObj.transform.position = anvilInstance.transform.position + Vector3.up * offset;
+            anvilLabelObj.GetComponent<TextMesh>().text = $"{loadMass:F0} kg";
+        }
+
         if (structuralElements == null) return;
         
         // If unstable or data is missing, show "UNSTABLE"
@@ -371,6 +398,11 @@ public class GameManager : MonoBehaviour
 
     public void HideStressLabels()
     {
+        if (anvilLabelObj != null)
+        {
+            anvilLabelObj.SetActive(false);
+        }
+
         if (structureHolder == null) return;
         foreach (Transform beam in structureHolder)
         {
@@ -1500,6 +1532,18 @@ public class GameManager : MonoBehaviour
 
          SpawnGameElements();
          UpdateBeamVisuals();
+    }
+
+    public float GetMaterialLimit(float area)
+    {
+        if (gridController == null || gridController.currentLevel == null) return 9999f;
+        
+        // Approximate float comparison
+        if (Mathf.Abs(area - 0.0049f) < 0.0001f) return gridController.currentLevel.limit7x7;
+        if (Mathf.Abs(area - 0.0025f) < 0.0001f) return gridController.currentLevel.limit5x5;
+        if (Mathf.Abs(area - 0.0009f) < 0.0001f) return gridController.currentLevel.limit3x3;
+        
+        return 9999f;
     }
 
     public float GetBeamLengthByArea(float targetArea, float tolerance = 0.0001f)
