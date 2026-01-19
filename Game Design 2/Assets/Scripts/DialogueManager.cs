@@ -32,10 +32,12 @@ public class DialogueManager : MonoBehaviour
     private bool isTyping = false;
     private bool isEnding = false;
     private Coroutine typingCoroutine;
+    private Vector3 originalScale;
 
     void Start()
     {
         if (bubbleObject == null) bubbleObject = this.gameObject;
+        originalScale = bubbleObject.transform.localScale;
         
         if (dialogueText == null) 
             dialogueText = GetComponentInChildren<TMP_Text>();
@@ -50,14 +52,33 @@ public class DialogueManager : MonoBehaviour
         dialogueText.enableWordWrapping = true;
         dialogueText.overflowMode = TextOverflowModes.Overflow;
 
+        // Hide bubble initially
+        SetBubbleVisible(false);
+
         if (lines.Count > 0)
         {
-            bubbleObject.SetActive(true);
-            StartLine(0);
+            StartCoroutine(DelayedStart(3.0f));
+        }
+    }
+
+    IEnumerator DelayedStart(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        SetBubbleVisible(true);
+        StartLine(0);
+    }
+
+    void SetBubbleVisible(bool visible)
+    {
+        if (bubbleObject == this.gameObject)
+        {
+            // If script is on the object, hide via scale to keep coroutines running
+            bubbleObject.transform.localScale = visible ? originalScale : Vector3.zero;
         }
         else
         {
-            bubbleObject.SetActive(false);
+            // If separate, we can safely deactivate
+            bubbleObject.SetActive(visible);
         }
     }
 
