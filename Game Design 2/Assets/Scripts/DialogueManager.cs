@@ -31,6 +31,7 @@ public class DialogueManager : MonoBehaviour
     private int currentLineIndex = 0;
     private bool isTyping = false;
     private bool isEnding = false;
+    private bool hasStarted = false;
     private Coroutine typingCoroutine;
     private Vector3 originalScale;
 
@@ -38,8 +39,8 @@ public class DialogueManager : MonoBehaviour
     {
         if (bubbleObject == null) bubbleObject = this.gameObject;
         originalScale = bubbleObject.transform.localScale;
-        
-        if (dialogueText == null) 
+
+        if (dialogueText == null)
             dialogueText = GetComponentInChildren<TMP_Text>();
 
         if (dialogueText == null)
@@ -64,8 +65,26 @@ public class DialogueManager : MonoBehaviour
     IEnumerator DelayedStart(float delay)
     {
         yield return new WaitForSeconds(delay);
+        hasStarted = true;
         SetBubbleVisible(true);
         StartLine(0);
+    }
+    
+    void Update()
+    {
+        if (isEnding || !hasStarted) return; 
+
+        if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space))
+        {            
+            if (isTyping)
+            {
+                FinishLineInstantly();
+            }
+            else
+            {
+                NextLine();
+            }
+        }
     }
 
     void SetBubbleVisible(bool visible)
@@ -79,23 +98,6 @@ public class DialogueManager : MonoBehaviour
         {
             // If separate, we can safely deactivate
             bubbleObject.SetActive(visible);
-        }
-    }
-
-    void Update()
-    {
-        if (isEnding) return; 
-
-        if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space))
-        {
-            if (isTyping)
-            {
-                FinishLineInstantly();
-            }
-            else
-            {
-                NextLine();
-            }
         }
     }
 
