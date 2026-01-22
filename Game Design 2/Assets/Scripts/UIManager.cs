@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -395,6 +396,10 @@ public class UIManager : MonoBehaviour
         theoryMenuObj = new GameObject("TheoryMenu");
         theoryMenuObj.transform.SetParent(canvasObj.transform, false);
         
+        // Define workingFont for legacy Text components (like the Close button)
+        Font workingFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (workingFont == null) workingFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        
         Image bg = theoryMenuObj.AddComponent<Image>();
         bg.color = new Color(0.05f, 0.05f, 0.1f, 0.95f); // See-through dark blue/black
         RectTransform rect = theoryMenuObj.GetComponent<RectTransform>();
@@ -404,15 +409,12 @@ public class UIManager : MonoBehaviour
         // 2. Title
         GameObject titleObj = new GameObject("Title");
         titleObj.transform.SetParent(theoryMenuObj.transform, false);
-        Text titleText = titleObj.AddComponent<Text>();
+        TextMeshProUGUI titleText = titleObj.AddComponent<TextMeshProUGUI>();
         titleText.text = "Introduction to Truss Structures";
-        Font workingFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        if (workingFont == null) workingFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        titleText.font = workingFont;
         titleText.fontSize = 40;
-        titleText.alignment = TextAnchor.MiddleCenter;
+        titleText.alignment = TextAlignmentOptions.Center;
         titleText.color = Color.white;
-        titleText.fontStyle = FontStyle.Bold;
+        titleText.fontStyle = FontStyles.Bold;
         
         RectTransform titleRect = titleObj.GetComponent<RectTransform>();
         titleRect.anchorMin = new Vector2(0, 0.9f); 
@@ -473,20 +475,19 @@ public class UIManager : MonoBehaviour
 
         // --- CONTENT GENERATION ---
         
-        // Helper to create Text Paragraphs
-        void AddText(string text, int size = 24, bool bold = false, FontStyle style = FontStyle.Normal)
+        // Helper to create Text Paragraphs using TextMeshPro
+        void AddText(string text, float size = 24, bool bold = false, FontStyles style = FontStyles.Normal)
         {
             GameObject tObj = new GameObject("Para");
             tObj.transform.SetParent(contentObj.transform, false);
-            Text t = tObj.AddComponent<Text>();
+            TextMeshProUGUI t = tObj.AddComponent<TextMeshProUGUI>();
             t.text = text;
-            t.font = workingFont;
             t.fontSize = size;
             t.color = new Color(0.9f, 0.9f, 0.9f);
-            t.horizontalOverflow = HorizontalWrapMode.Wrap;
-            t.verticalOverflow = VerticalWrapMode.Truncate; // Controlled by Layout
-            t.fontStyle = bold ? FontStyle.Bold : style;
-            t.supportRichText = true;
+            t.enableWordWrapping = true;
+            t.fontStyle = style | (bold ? FontStyles.Bold : FontStyles.Normal);
+            t.alignment = TextAlignmentOptions.TopLeft;
+            t.richText = true;
         }
 
         // Helper to create Header
@@ -506,11 +507,10 @@ public class UIManager : MonoBehaviour
             // Text label inside
             GameObject tObj = new GameObject("Label");
             tObj.transform.SetParent(iObj.transform, false);
-            Text t = tObj.AddComponent<Text>();
+            TextMeshProUGUI t = tObj.AddComponent<TextMeshProUGUI>();
             t.text = $"[Image: {label}]";
-            t.font = workingFont;
             t.fontSize = 20;
-            t.alignment = TextAnchor.MiddleCenter;
+            t.alignment = TextAlignmentOptions.Center;
             t.color = Color.yellow;
             RectTransform tr = tObj.GetComponent<RectTransform>();
             tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = Vector2.zero; tr.offsetMax = Vector2.zero;
@@ -534,15 +534,15 @@ public class UIManager : MonoBehaviour
         AddText("Members that are being \"pulled\" at both ends are under <b>tension</b>.");
         AddImagePlaceholder("Tensile Member");
         AddText("The stress a tensile member is subjected to can be calculated by:");
-        AddText("<color=yellow>σ = F / A</color>", 30, true);
-        AddText("Where:\n• <b>σ</b> is the stress.\n• <b>F</b> is the force acting on the member.\n• <b>A</b> is the cross-sectional area.");
+        AddText("<color=yellow><i>σ</i> = <i>F</i> / <i>A</i></color>", 30, true);
+        AddText("Where:\n• <b><i>σ</i></b> is the stress.\n• <b><i>F</i></b> is the force acting on the member.\n• <b><i>A</i></b> is the cross-sectional area.");
         
         AddText("<b>Example Calculation:</b>", 26);
         AddText("For a member with a square cross-section where width and depth are 5 cm (0.05 m):");
-        AddText("A = 0.05 m × 0.05 m = <b>0.0025 m²</b>");
+        AddText("<i>A</i> = 0.05 m × 0.05 m = <b>0.0025 m²</b>");
 
         AddHeader("Tensile Failure");
-        AddText("This member will start deforming <b>plastically</b> (irreversibly) when the stress exceeds the material’s yield stress (σ_y).");
+        AddText("This member will start deforming <b>plastically</b> (irreversibly) when the stress exceeds the material’s yield stress (<i>σ</i><sub>y</sub>).");
         AddImagePlaceholder("Animation: Beam Snapping");
         AddText("<b>Goal:</b> Always keep stress under the yield stress. Click the <b>%</b> button to see how close members are. If > 100%, support or replace it!");
 
@@ -554,16 +554,16 @@ public class UIManager : MonoBehaviour
         AddImagePlaceholder("Animation: Beam Buckling");
 
         AddHeader("Euler's Critical Load");
-        AddText("Compressed members buckle when their Euler's Critical Load (P_cr) is reached:");
-        AddText("<color=yellow>P_cr = (π² E I) / L²</color>", 30, true);
+        AddText("Compressed members buckle when their Euler's Critical Load (<i>P</i><sub>cr</sub>) is reached:");
+        AddText("<color=yellow><i>P</i><sub>cr</sub> = (<i>π</i><sup>2</sup> <i>E</i> <i>I</i>) / <i>L</i><sup>2</sup></color>", 30, true);
         
         AddText("<b>Key Takeaways:</b>");
-        AddText("1. <b>Length (L):</b> The critical load decreases as length increases. Longer members are much weaker. Keep them short!");
-        AddText("2. <b>Second Moment of Area (I):</b> For a square cross-section:");
-        AddText("<color=yellow>I = w⁴ / 12</color>", 30, true);
-        AddText("Since width (w) is raised to the 4th power, small increases in thickness make the member significantly stronger.");
+        AddText("1. <b>Length (<i>L</i>):</b> The critical load decreases as length increases. Longer members are much weaker. Keep them short!");
+        AddText("2. <b>Second Moment of Area (<i>I</i>):</b> For a square cross-section:");
+        AddText("<color=yellow><i>I</i> = <i>w</i><sup>4</sup> / 12</color>", 30, true);
+        AddText("Since width (<i>w</i>) is raised to the 4th power, small increases in thickness make the member significantly stronger.");
         
-        AddText("Just like tensile members, use the <b>%</b> button to monitor buckling. If > 100%, it will fail!");
+        AddText("Just like tensile members, use the <b>%</b> button to monitor buckling. If < -100%, it will fail!");
 
         // 4. Outro
         AddHeader("Learn More");
