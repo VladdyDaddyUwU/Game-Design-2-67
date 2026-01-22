@@ -9,6 +9,7 @@ public class UIManager : MonoBehaviour
     private GameObject panelObj;
     private GameObject pauseMenuObj; 
     private GameObject levelSelectMenuObj; // New Level Select Panel
+    private GameObject theoryMenuObj; // New Theory/Math Menu
     [Tooltip("Assign the existing Replay Dialogue Button from the Hierarchy here.")]
     public GameObject replayDialogueBtnObj; 
     private LevelManager levelManager; // Reference to access levels
@@ -38,6 +39,7 @@ public class UIManager : MonoBehaviour
         SetupHUD(); // Create persistent HUD elements
         SetupPauseMenu(); 
         SetupLevelSelectMenu(); // Build the secondary menu
+        SetupTheoryMenu(); // Build the Theory menu
 
         // Add AudioSource component
         audioSource = gameObject.GetComponent<AudioSource>();
@@ -385,6 +387,230 @@ public class UIManager : MonoBehaviour
         menuTextRect.offsetMax = Vector2.zero;
 
         pauseMenuObj.SetActive(false);
+    }
+
+    private void SetupTheoryMenu()
+    {
+        // 1. Container Panel
+        theoryMenuObj = new GameObject("TheoryMenu");
+        theoryMenuObj.transform.SetParent(canvasObj.transform, false);
+        
+        Image bg = theoryMenuObj.AddComponent<Image>();
+        bg.color = new Color(0.05f, 0.05f, 0.1f, 0.95f); // See-through dark blue/black
+        RectTransform rect = theoryMenuObj.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero;
+
+        // 2. Title
+        GameObject titleObj = new GameObject("Title");
+        titleObj.transform.SetParent(theoryMenuObj.transform, false);
+        Text titleText = titleObj.AddComponent<Text>();
+        titleText.text = "Introduction to Truss Structures";
+        Font workingFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (workingFont == null) workingFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        titleText.font = workingFont;
+        titleText.fontSize = 40;
+        titleText.alignment = TextAnchor.MiddleCenter;
+        titleText.color = Color.white;
+        titleText.fontStyle = FontStyle.Bold;
+        
+        RectTransform titleRect = titleObj.GetComponent<RectTransform>();
+        titleRect.anchorMin = new Vector2(0, 0.9f); 
+        titleRect.anchorMax = new Vector2(1, 1);
+        titleRect.offsetMin = new Vector2(50, 0); titleRect.offsetMax = new Vector2(-50, -20);
+
+        // 3. Scroll View
+        GameObject scrollObj = new GameObject("ScrollView");
+        scrollObj.transform.SetParent(theoryMenuObj.transform, false);
+        RectTransform scrollRectTransform = scrollObj.AddComponent<RectTransform>();
+        scrollRectTransform.anchorMin = new Vector2(0.1f, 0.1f);
+        scrollRectTransform.anchorMax = new Vector2(0.9f, 0.88f); // Below Title
+        scrollRectTransform.offsetMin = Vector2.zero;
+        scrollRectTransform.offsetMax = Vector2.zero;
+
+        ScrollRect scrollRect = scrollObj.AddComponent<ScrollRect>();
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.scrollSensitivity = 20f;
+
+        // Viewport
+        GameObject viewportObj = new GameObject("Viewport");
+        viewportObj.transform.SetParent(scrollObj.transform, false);
+        RectTransform viewRect = viewportObj.AddComponent<RectTransform>();
+        viewRect.anchorMin = Vector2.zero; viewRect.anchorMax = Vector2.one;
+        viewRect.offsetMin = Vector2.zero; viewRect.offsetMax = Vector2.zero;
+        viewportObj.AddComponent<Mask>().showMaskGraphic = false;
+        Image maskImg = viewportObj.AddComponent<Image>();
+        maskImg.color = Color.white;
+
+        // Content
+        GameObject contentObj = new GameObject("Content");
+        contentObj.transform.SetParent(viewportObj.transform, false);
+        RectTransform contentRect = contentObj.AddComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0, 1); 
+        contentRect.anchorMax = new Vector2(1, 1);
+        contentRect.pivot = new Vector2(0.5f, 1);
+        
+        scrollRect.content = contentRect;
+        scrollRect.viewport = viewRect;
+
+        VerticalLayoutGroup vlg = contentObj.AddComponent<VerticalLayoutGroup>();
+        // Increased left padding to 50 to prevent text clipping
+        vlg.padding = new RectOffset(50, 40, 20, 20); 
+        vlg.spacing = 30;
+        vlg.childAlignment = TextAnchor.UpperLeft;
+        vlg.childControlHeight = true;
+        vlg.childControlWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childForceExpandWidth = true;
+
+        ContentSizeFitter fitter = contentObj.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        
+        // Ensure content rect starts at correct position
+        contentRect.offsetMin = Vector2.zero;
+        contentRect.offsetMax = Vector2.zero;
+
+        // --- CONTENT GENERATION ---
+        
+        // Helper to create Text Paragraphs
+        void AddText(string text, int size = 24, bool bold = false, FontStyle style = FontStyle.Normal)
+        {
+            GameObject tObj = new GameObject("Para");
+            tObj.transform.SetParent(contentObj.transform, false);
+            Text t = tObj.AddComponent<Text>();
+            t.text = text;
+            t.font = workingFont;
+            t.fontSize = size;
+            t.color = new Color(0.9f, 0.9f, 0.9f);
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            t.verticalOverflow = VerticalWrapMode.Truncate; // Controlled by Layout
+            t.fontStyle = bold ? FontStyle.Bold : style;
+            t.supportRichText = true;
+        }
+
+        // Helper to create Header
+        void AddHeader(string text)
+        {
+            AddText(text, 32, true);
+        }
+
+        // Helper to create Image Placeholder
+        void AddImagePlaceholder(string label)
+        {
+            GameObject iObj = new GameObject("Img_" + label);
+            iObj.transform.SetParent(contentObj.transform, false);
+            Image img = iObj.AddComponent<Image>();
+            img.color = new Color(0.2f, 0.2f, 0.2f, 0.5f); // Grey placeholder
+            
+            // Text label inside
+            GameObject tObj = new GameObject("Label");
+            tObj.transform.SetParent(iObj.transform, false);
+            Text t = tObj.AddComponent<Text>();
+            t.text = $"[Image: {label}]";
+            t.font = workingFont;
+            t.fontSize = 20;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.color = Color.yellow;
+            RectTransform tr = tObj.GetComponent<RectTransform>();
+            tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = Vector2.zero; tr.offsetMax = Vector2.zero;
+
+            LayoutElement le = iObj.AddComponent<LayoutElement>();
+            le.minHeight = 200;
+            le.preferredHeight = 250;
+        }
+
+        // 1. Fundamentals
+        AddHeader("1. Truss Fundamentals");
+        AddText("A truss structure consists of beams connected through pin joints. Using these beams, you can create very strong, lightweight structures used to support heavy loads.");
+        AddImagePlaceholder("Truss Structure");
+        AddText("Truss structures are used to efficiently distribute the weight they carry through their members. They are built in a way to only subject members to <b>axial loading</b>, without any bending moments.");
+        AddImagePlaceholder("Axial Force Arrows");
+        AddText("This is very beneficial, as materials perform better in tension or compression than in bending.");
+        AddImagePlaceholder("Animation: Bending vs Axial");
+
+        // 2. Tensile
+        AddHeader("2. Tensile Members");
+        AddText("Members that are being \"pulled\" at both ends are under <b>tension</b>.");
+        AddImagePlaceholder("Tensile Member");
+        AddText("The stress a tensile member is subjected to can be calculated by:");
+        AddText("<color=yellow>σ = F / A</color>", 30, true);
+        AddText("Where:\n• <b>σ</b> is the stress.\n• <b>F</b> is the force acting on the member.\n• <b>A</b> is the cross-sectional area.");
+        
+        AddText("<b>Example Calculation:</b>", 26);
+        AddText("For a member with a square cross-section where width and depth are 5 cm (0.05 m):");
+        AddText("A = 0.05 m × 0.05 m = <b>0.0025 m²</b>");
+
+        AddHeader("Tensile Failure");
+        AddText("This member will start deforming <b>plastically</b> (irreversibly) when the stress exceeds the material’s yield stress (σ_y).");
+        AddImagePlaceholder("Animation: Beam Snapping");
+        AddText("<b>Goal:</b> Always keep stress under the yield stress. Click the <b>%</b> button to see how close members are. If > 100%, support or replace it!");
+
+        // 3. Compression
+        AddHeader("3. Compressed Members");
+        AddText("Members that are being \"pushed\" at both ends are being <b>compressed</b>.");
+        AddImagePlaceholder("Compressed Member");
+        AddText("While compressed members fail if yield stress is exceeded, they often <b>buckle</b> before that happens.");
+        AddImagePlaceholder("Animation: Beam Buckling");
+
+        AddHeader("Euler's Critical Load");
+        AddText("Compressed members buckle when their Euler's Critical Load (P_cr) is reached:");
+        AddText("<color=yellow>P_cr = (π² E I) / L²</color>", 30, true);
+        
+        AddText("<b>Key Takeaways:</b>");
+        AddText("1. <b>Length (L):</b> The critical load decreases as length increases. Longer members are much weaker. Keep them short!");
+        AddText("2. <b>Second Moment of Area (I):</b> For a square cross-section:");
+        AddText("<color=yellow>I = w⁴ / 12</color>", 30, true);
+        AddText("Since width (w) is raised to the 4th power, small increases in thickness make the member significantly stronger.");
+        
+        AddText("Just like tensile members, use the <b>%</b> button to monitor buckling. If > 100%, it will fail!");
+
+        // 4. Outro
+        AddHeader("Learn More");
+        AddText("You can learn more about truss structures at the <b>Mechanical Engineering bachelor at the TU/e</b>. If you enjoy this game, consider subscribing to this study!");
+        
+        // --- CLOSE BUTTON ---
+        GameObject closeBtnObj = new GameObject("BtnClose");
+        closeBtnObj.transform.SetParent(theoryMenuObj.transform, false);
+        Image closeImg = closeBtnObj.AddComponent<Image>();
+        closeImg.color = new Color(1f, 0.2f, 0.2f, 0.8f);
+        Button closeBtn = closeBtnObj.AddComponent<Button>();
+        closeBtn.onClick.AddListener(CloseTheoryMenu);
+        
+        RectTransform closeRect = closeBtnObj.GetComponent<RectTransform>();
+        closeRect.anchorMin = new Vector2(1, 1);
+        closeRect.anchorMax = new Vector2(1, 1);
+        closeRect.pivot = new Vector2(1, 1);
+        closeRect.sizeDelta = new Vector2(50, 50);
+        closeRect.anchoredPosition = new Vector2(-10, -10);
+        
+        GameObject closeTxt = new GameObject("Text");
+        closeTxt.transform.SetParent(closeBtnObj.transform, false);
+        Text ct = closeTxt.AddComponent<Text>();
+        ct.text = "X";
+        ct.font = workingFont;
+        ct.fontSize = 30;
+        ct.alignment = TextAnchor.MiddleCenter;
+        ct.color = Color.white;
+        ct.GetComponent<RectTransform>().anchorMin = Vector2.zero;
+        ct.GetComponent<RectTransform>().anchorMax = Vector2.one;
+
+        // Hide by default
+        theoryMenuObj.SetActive(false);
+    }
+
+    public void OpenTheoryMenu()
+    {
+        if (theoryMenuObj != null)
+        {
+            theoryMenuObj.SetActive(true);
+            if (pauseMenuObj != null) pauseMenuObj.SetActive(false); // Hide pause if open
+        }
+    }
+
+    public void CloseTheoryMenu()
+    {
+        if (theoryMenuObj != null) theoryMenuObj.SetActive(false);
     }
 
     public void GoToMainMenu()
