@@ -56,6 +56,10 @@ public class LevelData : ScriptableObject
     public float twoStarsLengthLimit = 50f;
     [Tooltip("Maximum total length of meters allowed to earn 1 Star")]
     public float oneStarLengthLimit = 100f;
+
+    [Header("Narrative")]
+    [TextArea(3, 10)]
+    public List<string> openingDialogue = new List<string>();
 }
 
 [System.Serializable]

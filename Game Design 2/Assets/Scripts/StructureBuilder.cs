@@ -38,6 +38,7 @@ public class StructureBuilder : MonoBehaviour
 
     void Update()
     {
+        if (gameManager.currentMode == GameMode.Dialogue) return; // Block input during dialogue
         if (gameManager.currentMode != GameMode.Build) return;
 
         HandleInput();

@@ -55,12 +55,12 @@ public class LevelManager : MonoBehaviour
         // 1. Tell Grid to load specific level config
         gridController.LoadLevel(data);
         
-        // 2. Regenerate Grid (This triggers GameManager.InitializeStructure inside GridController)
-        gridController.GenerateGrid();
-        
-        // 3. Reset Game State
+        // 2. Reset Game State FIRST
         gameManager.currentMode = GameMode.Build;
         gameManager.RestartLevel();
+        
+        // 3. Regenerate Grid (This triggers GameManager.InitializeStructure -> Dialogue)
+        gridController.GenerateGrid();
     }
 
     public void NextLevel()

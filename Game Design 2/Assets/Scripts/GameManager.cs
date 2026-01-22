@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
-public enum GameMode { Build, Simulate }
+public enum GameMode { Build, Simulate, Dialogue }
 
 public class GameManager : MonoBehaviour
 {
@@ -15,6 +15,7 @@ public class GameManager : MonoBehaviour
     public StructureBuilder structureBuilder;
     public UIManager uiManager;
     public LevelManager levelManager;
+    public LevelDialogueManager dialogueManager; // New Reference
     public Transform structureHolder;
     public Transform elementsHolder;
 
@@ -160,6 +161,16 @@ public class GameManager : MonoBehaviour
         }
 
         if (levelManager == null) levelManager = FindObjectOfType<LevelManager>();
+
+        if (dialogueManager == null)
+        {
+            dialogueManager = FindObjectOfType<LevelDialogueManager>();
+            if (dialogueManager == null)
+            {
+                GameObject dlgObj = new GameObject("LevelDialogueManager");
+                dialogueManager = dlgObj.AddComponent<LevelDialogueManager>();
+            }
+        }
     }
 
     public void OpenPauseMenu()
@@ -196,6 +207,9 @@ public class GameManager : MonoBehaviour
 
         // If Menu is Open, Block all other inputs
         if (uiManager != null && uiManager.IsPauseMenuOpen()) return;
+        
+        // If Dialogue is Open, Block Sim/Build hotkeys (but Pause 'X' was handled above or via UI Manager)
+        if (currentMode == GameMode.Dialogue) return;
 
         // Example: Press 'S' to start simulation
         if (Input.GetKeyDown(KeyCode.S))
@@ -703,6 +717,45 @@ public class GameManager : MonoBehaviour
         }
 
         SpawnGameElements();
+        
+        TriggerLevelDialogue(); // Trigger only on full init
+    }
+
+    public void TriggerLevelDialogue()
+    {
+        Debug.Log("GameManager: TriggerLevelDialogue called.");
+        bool hasDialogue = false;
+        if (gridController != null && gridController.currentLevel != null)
+        {
+            if (gridController.currentLevel.openingDialogue != null && gridController.currentLevel.openingDialogue.Count > 0)
+            {
+                hasDialogue = true;
+                // Only start if calling from init or button (not null check)
+                if (dialogueManager != null && humanInstance != null)
+                {
+                    Debug.Log("GameManager: Starting Dialogue via Manager.");
+                    dialogueManager.StartLevelDialogue(gridController.currentLevel.openingDialogue, humanInstance.transform.position);
+                }
+                else
+                {
+                    Debug.LogWarning($"GameManager: Cannot start dialogue. Manager: {dialogueManager}, Human: {humanInstance}");
+                }
+            }
+            else
+            {
+                 Debug.Log("GameManager: No opening dialogue found for this level.");
+            }
+        }
+        else
+        {
+             Debug.LogWarning("GameManager: GridController or CurrentLevel is null.");
+        }
+        
+        // Update UI Button Visibility
+        if (uiManager != null)
+        {
+            uiManager.SetReplayDialogueButtonVisible(hasDialogue);
+        }
     }
 
     public void SpawnGameElements()

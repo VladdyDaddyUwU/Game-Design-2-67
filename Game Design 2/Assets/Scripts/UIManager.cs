@@ -9,6 +9,8 @@ public class UIManager : MonoBehaviour
     private GameObject panelObj;
     private GameObject pauseMenuObj; 
     private GameObject levelSelectMenuObj; // New Level Select Panel
+    [Tooltip("Assign the existing Replay Dialogue Button from the Hierarchy here.")]
+    public GameObject replayDialogueBtnObj; 
     private LevelManager levelManager; // Reference to access levels
     private Text levelCompleteText; // Missing field declaration
     private AudioSource audioSource;
@@ -33,6 +35,7 @@ public class UIManager : MonoBehaviour
         }
 
         SetupUI();
+        SetupHUD(); // Create persistent HUD elements
         SetupPauseMenu(); 
         SetupLevelSelectMenu(); // Build the secondary menu
 
@@ -46,6 +49,35 @@ public class UIManager : MonoBehaviour
         buttonClickSound = Resources.Load<AudioClip>("button_click");
         if (buttonClickSound == null) {
             Debug.LogError("Failed to load button_click sound from Resources folder. Make sure the file is there and named correctly.");
+        }
+    }
+
+    private void SetupHUD()
+    {
+        if (replayDialogueBtnObj != null)
+        {
+            Button btn = replayDialogueBtnObj.GetComponent<Button>();
+            if (btn != null)
+            {
+                // Remove previous listeners to avoid duplicates if re-running
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(() => {
+                    GameManager gm = FindObjectOfType<GameManager>();
+                    if (gm != null) gm.TriggerLevelDialogue();
+                });
+            }
+        }
+    }
+
+    public void SetReplayDialogueButtonVisible(bool visible)
+    {
+        // Keeping method signature to prevent breaking GameManager, but making it do nothing
+        // or ensure it stays active if that is the request.
+        if (replayDialogueBtnObj != null)
+        {
+             // If you want it ALWAYS visible, we just force it true, or ignore the 'visible' param.
+             // For safety, let's just make sure it's on.
+             replayDialogueBtnObj.SetActive(true);
         }
     }
 
@@ -609,6 +641,7 @@ public class UIManager : MonoBehaviour
 
     public void TogglePauseMenu()
     {
+        // Allow Pause Menu even in Dialogue Mode, but handle the Resume correctly
         // If Level Select is open, close it and strictly close the Pause Menu (Resume Game)
         if (levelSelectMenuObj != null && levelSelectMenuObj.activeSelf)
         {
@@ -621,6 +654,9 @@ public class UIManager : MonoBehaviour
         {
             bool isActive = !pauseMenuObj.activeSelf;
             pauseMenuObj.SetActive(isActive);
+            
+            // If we are pausing, we don't need to do anything special to the dialogue.
+            // If we are RESUMING, we rely on the Game Mode staying as 'Dialogue' so the blocker persists.
         }
     }
 

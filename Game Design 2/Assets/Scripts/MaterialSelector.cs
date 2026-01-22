@@ -122,6 +122,9 @@ public class MaterialSelector : MonoBehaviour
 
     void Update()
     {
+        // Block Interaction during Dialogue
+        if (gameManager != null && gameManager.currentMode == GameMode.Dialogue) return;
+
         if (Input.GetMouseButtonDown(0)) // Left Click
         {
             CheckClick();

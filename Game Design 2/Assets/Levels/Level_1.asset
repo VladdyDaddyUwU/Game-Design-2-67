@@ -36,3 +36,7 @@ MonoBehaviour:
   threeStarsLengthLimit: 1.1
   twoStarsLengthLimit: 50
   oneStarLengthLimit: 100
+  openingDialogue:
+  - HII
+  - AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+  - HII
