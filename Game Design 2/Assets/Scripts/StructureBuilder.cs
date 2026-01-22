@@ -195,6 +195,7 @@ public class StructureBuilder : MonoBehaviour
         if (gameManager.gridController != null && gameManager.gridController.IsSegmentIntersectingDeadZone(startNode.transform.position, endNode.transform.position))
         {
             Debug.LogWarning("Cannot build through the restricted area (Dead Zone).");
+            if (gameManager.uiManager != null) gameManager.uiManager.ShowWarning("CANNOT BUILD OVER DEADZONE");
             if (incorrectPlacementSound != null) audioSource.PlayOneShot(incorrectPlacementSound, incorrectPlacementVolume);
             return;
         }
@@ -203,6 +204,7 @@ public class StructureBuilder : MonoBehaviour
         if (!CheckMaterialAvailability(startNode, endNode))
         {
             Debug.LogWarning("Not enough material!");
+            if (gameManager.uiManager != null) gameManager.uiManager.ShowWarning("RAN OUT OF THIS MATERIAL");
             if (incorrectPlacementSound != null) audioSource.PlayOneShot(incorrectPlacementSound, incorrectPlacementVolume);
             return;
         }

@@ -22,6 +22,10 @@ public class UIManager : MonoBehaviour
     public Sprite starSprite; // Assign in Inspector or load
     private List<Image> starImages = new List<Image>();
 
+    // Warning UI
+    private Text warningText;
+    private Coroutine warningCoroutine;
+
     void Start()
     {
         levelManager = FindObjectOfType<LevelManager>();
@@ -997,5 +1001,70 @@ public class UIManager : MonoBehaviour
             yield return null;
         }
         panelObj.transform.localScale = Vector3.one;
+    }
+
+    public void ShowWarning(string message)
+    {
+        if (warningText == null)
+        {
+            // Create Warning Text Object if it doesn't exist
+            GameObject wObj = new GameObject("WarningText");
+            wObj.transform.SetParent(canvasObj.transform, false);
+            warningText = wObj.AddComponent<Text>();
+            
+            Font workingFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (workingFont == null) workingFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            warningText.font = workingFont;
+            
+            warningText.fontSize = 40;
+            warningText.alignment = TextAnchor.MiddleCenter;
+            warningText.color = Color.red;
+            warningText.fontStyle = FontStyle.Bold;
+            warningText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            warningText.verticalOverflow = VerticalWrapMode.Overflow;
+            
+            // Add shadow/outline for better visibility
+            Outline ol = wObj.AddComponent<Outline>();
+            ol.effectColor = Color.black;
+            ol.effectDistance = new Vector2(2, -2);
+
+            RectTransform rt = wObj.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0, 0.5f);
+            rt.anchorMax = new Vector2(1, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(0, 150); // Increased height to prevent clipping
+            rt.anchoredPosition = new Vector2(0, 100); // Slightly above center
+        }
+
+        warningText.text = message;
+        warningText.gameObject.SetActive(true);
+        warningText.transform.SetAsLastSibling(); // Ensure on top
+
+        if (warningCoroutine != null) StopCoroutine(warningCoroutine);
+        warningCoroutine = StartCoroutine(FadeWarning());
+    }
+
+    private IEnumerator FadeWarning()
+    {
+        // Visible for 1.5 seconds
+        Color c = warningText.color;
+        c.a = 1f;
+        warningText.color = c;
+        
+        yield return new WaitForSeconds(1.5f);
+
+        // Fade out over 1 second
+        float duration = 1f;
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float alpha = Mathf.Lerp(1f, 0f, elapsed / duration);
+            c.a = alpha;
+            warningText.color = c;
+            yield return null;
+        }
+        
+        warningText.gameObject.SetActive(false);
     }
 }
