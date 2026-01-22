@@ -49,7 +49,8 @@ public class LevelManager : MonoBehaviour
         currentLevelIndex = index;
         LevelData data = levels[currentLevelIndex];
         
-        Debug.Log($"Loading Level {index + 1}: {data.name}");
+        string levelDisplayName = (currentLevelIndex == 10) ? "Sandbox" : "Level " + (currentLevelIndex + 1);
+        Debug.Log($"Loading {levelDisplayName}: {data.name}");
         
         // 1. Tell Grid to load specific level config
         gridController.LoadLevel(data);

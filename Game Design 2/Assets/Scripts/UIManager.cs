@@ -469,9 +469,20 @@ public class UIManager : MonoBehaviour
                 GameObject txtObj = new GameObject("Text");
                 txtObj.transform.SetParent(lvlBtn.transform, false);
                 Text t = txtObj.AddComponent<Text>();
-                t.text = (i + 1).ToString();
+                
+                // If this is the 11th level (index 10), call it "Sandbox"
+                if (i == 10)
+                {
+                    t.text = "Sandbox";
+                    t.fontSize = 22; // Smaller font to fit "Sandbox" in 100px width
+                }
+                else
+                {
+                    t.text = (i + 1).ToString();
+                    t.fontSize = 40;
+                }
+
                 t.font = workingFont;
-                t.fontSize = 40;
                 t.alignment = TextAnchor.MiddleCenter;
                 t.color = Color.white;
                 

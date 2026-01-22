@@ -57,7 +57,7 @@ public class GameManager : MonoBehaviour
     private StructuralAnalysis.AnalysisResult lastAnalysisResult;
     private int prebuiltElementCount = 0; // Track how many elements are permanent
     
-    private Sprite connectedNodeSprite;
+    public Sprite connectedNodeSprite;
 
     // Tracking for broken parts
     private List<GameObject> brokenParts = new List<GameObject>();
@@ -86,6 +86,18 @@ public class GameManager : MonoBehaviour
 
     void Awake()
     {
+        // Try to load from Resources if not assigned (Support for Builds)
+        if (connectedNodeSprite == null)
+        {
+            connectedNodeSprite = Resources.Load<Sprite>("CBT2");
+            if (connectedNodeSprite == null)
+            {
+                 Texture2D tex = Resources.Load<Texture2D>("CBT2");
+                 if (tex != null)
+                     connectedNodeSprite = Sprite.Create(tex, new Rect(0,0,tex.width,tex.height), new Vector2(0.5f, 0.5f), 100f);
+            }
+        }
+
         // --- One-shot sound setup ---
         // Get or add AudioSource component
         audioSource = GetComponent<AudioSource>();
@@ -103,17 +115,6 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        #if UNITY_EDITOR
-        string cbtPath = "Assets/Levels/CBT2.png";
-        connectedNodeSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(cbtPath);
-        if (connectedNodeSprite == null)
-        {
-             Texture2D tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(cbtPath);
-             if (tex != null)
-                 connectedNodeSprite = Sprite.Create(tex, new Rect(0,0,tex.width,tex.height), new Vector2(0.5f, 0.5f), 100f);
-        }
-        #endif
-        
         // --- Ambiance sound setup ---
         GameObject ambiancePlayer = new GameObject("AmbiancePlayer");
         ambiancePlayer.transform.SetParent(this.transform);
@@ -1196,7 +1197,8 @@ public class GameManager : MonoBehaviour
             if (stars > currentBest)
             {
                 LevelData.SessionStars[idx] = stars;
-                Debug.Log($"New Session Best for Level {idx}: {stars} Stars!");
+                string levelDisplayName = (idx == 10) ? "Sandbox" : "Level " + (idx + 1);
+                Debug.Log($"New Session Best for {levelDisplayName}: {stars} Stars!");
             }
         }
 
