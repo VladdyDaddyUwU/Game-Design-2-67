@@ -46,3 +46,6 @@ MonoBehaviour:
   threeStarsLengthLimit: 16.1
   twoStarsLengthLimit: 20.1
   oneStarLengthLimit: 100
+  openingDialogue:
+  - 1
+  - 2

@@ -20,6 +20,20 @@ public class LevelDialogueManager : MonoBehaviour
     [Tooltip("Assign the bubble sprite here (e.g. from 'Assets/2D Atlas.../Sprites'). If null, it attempts to load '+Speechbubble_1' from Resources.")]
     public Sprite bubbleSprite; 
     
+    [Header("Interaction Settings")]
+    [Tooltip("Partial names of buttons to BLOCK during dialogue. All other buttons (Settings, Pause, etc.) will remain active.")]
+    public List<string> buttonsToBlock = new List<string>() { 
+        "Run", "Simulate", "Play", 
+        "Reset", "Restart", "Clear", 
+        "Undo", "Redo",
+        "Help", "Guide", 
+        "Compression", "Tension", 
+        "Material", "Replay",
+        "Exit", "Retry"
+    };
+    
+    private List<Button> temporarilyDisabledButtons = new List<Button>();
+    
     void Awake()
     {
         gameManager = FindObjectOfType<GameManager>();
@@ -49,10 +63,21 @@ public class LevelDialogueManager : MonoBehaviour
         }
     }
 
+    public void ForceStopDialogue()
+    {
+        if (IsDialogueActive())
+        {
+            EndDialogue();
+        }
+    }
+
     public void StartLevelDialogue(List<string> lines, Vector3 targetWorldPos)
     {
         Debug.Log($"LevelDialogueManager: Starting dialogue with {lines.Count} lines.");
         if (lines == null || lines.Count == 0) return;
+        
+        // Restore first in case of restart/replay to ensure clean state
+        RestoreGameplayButtons();
         
         currentLines = lines;
         currentLineIndex = 0;
@@ -65,8 +90,51 @@ public class LevelDialogueManager : MonoBehaviour
         
         // Block Interaction
         if (gameManager != null) gameManager.currentMode = GameMode.Dialogue;
+        DisableGameplayButtons();
         
         ShowLine(currentLines[0]);
+    }
+
+    private void DisableGameplayButtons()
+    {
+        temporarilyDisabledButtons.Clear();
+        // Find all ACTIVE buttons in the scene
+        var allButtons = FindObjectsOfType<Button>();
+        
+        foreach (var btn in allButtons)
+        {
+            // Check if this button should be blocked
+            bool shouldBlock = false;
+            foreach(string blockName in buttonsToBlock) 
+            {
+                if (btn.name.IndexOf(blockName, System.StringComparison.OrdinalIgnoreCase) >= 0) 
+                {
+                    shouldBlock = true;
+                    break;
+                }
+            }
+            
+            // Do NOT block if it's part of the dialogue UI (like the click area if we had one, though we use global input now)
+            // or if it's clearly a system button we missed (sanity check)
+            
+            if (shouldBlock && btn.enabled)
+            {
+                btn.enabled = false;
+                temporarilyDisabledButtons.Add(btn);
+            }
+        }
+    }
+
+    private void RestoreGameplayButtons()
+    {
+        foreach (var btn in temporarilyDisabledButtons)
+        {
+            if (btn != null)
+            {
+                btn.enabled = true;
+            }
+        }
+        temporarilyDisabledButtons.Clear();
     }
 
     private void CreateDialogueUI()
@@ -87,11 +155,10 @@ public class LevelDialogueManager : MonoBehaviour
         bubbleObj.transform.SetParent(dialogueCanvas.transform, false);
         
         Image img = bubbleObj.AddComponent<Image>();
+        img.raycastTarget = false; // Allow clicks to pass through to the background
         if (bubbleSprite != null) 
         {
             img.sprite = bubbleSprite;
-            // Use Simple with Preserve Aspect so it doesn't look like a stretched rectangle
-            // unless the user has properly 9-sliced it.
             img.type = Image.Type.Simple; 
             img.preserveAspect = true;
         }
@@ -120,6 +187,7 @@ public class LevelDialogueManager : MonoBehaviour
         txtObj.transform.localScale = new Vector3(-1, 1, 1);
         
         bubbleText = txtObj.AddComponent<Text>();
+        bubbleText.raycastTarget = false; // Allow clicks to pass through to the background
         bubbleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         bubbleText.fontSize = 20;
         bubbleText.color = Color.black;
@@ -145,6 +213,11 @@ public class LevelDialogueManager : MonoBehaviour
             screenPos.y += 50;
             bubbleObj.transform.position = screenPos;
         }
+    }
+
+    public bool IsDialogueActive()
+    {
+        return (dialogueCanvas != null && dialogueCanvas.activeSelf);
     }
 
     public void OnDialogueClick()
@@ -239,6 +312,7 @@ public class LevelDialogueManager : MonoBehaviour
 
     private void EndDialogue()
     {
+        RestoreGameplayButtons();
         if (dialogueCanvas != null) dialogueCanvas.SetActive(false);
         if (gameManager != null) gameManager.SwitchToBuildMode(); // Unlock
     }

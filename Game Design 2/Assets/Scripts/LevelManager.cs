@@ -52,6 +52,10 @@ public class LevelManager : MonoBehaviour
         string levelDisplayName = (currentLevelIndex == 10) ? "Sandbox" : "Level " + (currentLevelIndex + 1);
         Debug.Log($"Loading {levelDisplayName}: {data.name}");
         
+        // 0. Force Close any existing dialogue
+        LevelDialogueManager dm = FindObjectOfType<LevelDialogueManager>();
+        if (dm != null) dm.ForceStopDialogue();
+
         // 1. Tell Grid to load specific level config
         gridController.LoadLevel(data);
         
