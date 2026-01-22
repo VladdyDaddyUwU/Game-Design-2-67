@@ -50,3 +50,10 @@ MonoBehaviour:
   threeStarsLengthLimit: 5.1
   twoStarsLengthLimit: 7.6
   oneStarLengthLimit: 100
+  openingDialogue:
+  - As you are building your structure, you can click <b>TRUSS ME BRO</b> to run
+    the simulation and see what happens. If it fails, you can always retry!
+  - "Don\u2019t take too many tries though, I can still feel the pain\u2026"
+  - You can click the % button to see how close your members are to failing. If a
+    member <b>crosses 100%</b>, it will either <b>yield under its tensile stress
+    (blue)</b>, or <b>buckle under compression (red)</b>.

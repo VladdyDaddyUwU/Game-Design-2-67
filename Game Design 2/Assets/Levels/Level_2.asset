@@ -37,4 +37,5 @@ MonoBehaviour:
   twoStarsLengthLimit: 50
   oneStarLengthLimit: 100
   openingDialogue:
-  - fhghfhf
+  - You can't build any elements that cross the <b>red area</b>! This is the area
+    your structure is meant to overcome by the structure being sufficiently strong.

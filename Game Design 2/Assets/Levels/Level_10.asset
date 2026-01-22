@@ -34,3 +34,15 @@ MonoBehaviour:
   threeStarsLengthLimit: 17.1
   twoStarsLengthLimit: 22.9
   oneStarLengthLimit: 100
+  openingDialogue:
+  - 'In this level, the beams have a <b>thinner profile</b>! To compensate, <b>the
+    mass of the weight has been reduced</b>. '
+  - Keep in mind that the <b>compressed members will break more easily due to the
+    thin profile</b>.
+  - "This is a result of the width of the cross-section being raised to the fourth
+    power when calculating <b>Euler\u2019s Critical Load</b>."
+  - To prevent your compressed members from buckling, make sure they are <b>not too
+    long</b>!
+  - Make sure to select the right material in your <b>toolbox</b> on the bottom of
+    your screen.
+  - This is the final level, so please save my few remaining braincells.

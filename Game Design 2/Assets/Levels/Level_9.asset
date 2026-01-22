@@ -47,5 +47,6 @@ MonoBehaviour:
   twoStarsLengthLimit: 20.1
   oneStarLengthLimit: 100
   openingDialogue:
-  - 1
-  - 2
+  - 'These are getting pretty complicated now. Keep in mind what you have learned
+    so far! '
+  - And all the hospital bills I have to pay for!

@@ -40,3 +40,9 @@ MonoBehaviour:
   threeStarsLengthLimit: 9.1
   twoStarsLengthLimit: 12.1
   oneStarLengthLimit: 100
+  openingDialogue:
+  - This level is a bit tricky. As always, pay close attention to which beam is <b>failing</b>
+    if your construction breaks.
+  - "Don\u2019t worry about me, my suffering is inconsequential!"
+  - 'But just to be sure, I''ll give you a hint: <b>beams can cross other beams</b>
+    without any problems! '
