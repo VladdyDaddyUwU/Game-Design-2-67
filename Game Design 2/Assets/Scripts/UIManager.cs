@@ -735,12 +735,27 @@ public class UIManager : MonoBehaviour
                 lvlBtn.transform.SetParent(contentObj.transform, false);
                 
                 Image btnImg = lvlBtn.AddComponent<Image>();
-                btnImg.color = new Color(1f, 1f, 1f, 0.2f);
-                
                 Button btn = lvlBtn.AddComponent<Button>();
-                btn.onClick.AddListener(() => {
-                    SelectLevel(levelIndex);
-                });
+
+                // CHECK UNLOCK STATUS
+                // Level 0 is always unlocked.
+                // Other levels require the previous level to have at least 1 star (completed).
+                bool isUnlocked = (i == 0) || (LevelData.SessionStars.ContainsKey(i - 1) && LevelData.SessionStars[i - 1] > 0);
+
+                if (isUnlocked)
+                {
+                    btnImg.color = new Color(1f, 1f, 1f, 0.2f); // Normal
+                    btn.onClick.AddListener(() => {
+                        SelectLevel(levelIndex);
+                    });
+                }
+                else
+                {
+                    btnImg.color = new Color(0.2f, 0.2f, 0.2f, 0.5f); // Dark Grey (Locked)
+                    // No listener added, so it's unclickable (visually active but does nothing)
+                    // Or we can set btn.interactable = false;
+                    btn.interactable = false;
+                }
 
                 GameObject txtObj = new GameObject("Text");
                 txtObj.transform.SetParent(lvlBtn.transform, false);
@@ -750,7 +765,7 @@ public class UIManager : MonoBehaviour
                 if (i == 10)
                 {
                     t.text = "Sandbox";
-                    t.fontSize = 22; // Smaller font to fit "Sandbox" in 100px width
+                    t.fontSize = 22; 
                 }
                 else
                 {
@@ -760,7 +775,9 @@ public class UIManager : MonoBehaviour
 
                 t.font = workingFont;
                 t.alignment = TextAnchor.MiddleCenter;
-                t.color = Color.white;
+                
+                // Dim text if locked
+                t.color = isUnlocked ? Color.white : new Color(0.6f, 0.6f, 0.6f);
                 
                 // Position text lower to make room for stars
                 RectTransform txtRect = txtObj.GetComponent<RectTransform>();
