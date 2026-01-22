@@ -40,3 +40,9 @@ MonoBehaviour:
     width: 5
     height: 4
   prebuiltBeams: []
+  threeStarsLengthLimit: 30
+  twoStarsLengthLimit: 50
+  oneStarLengthLimit: 100
+  openingDialogue:
+  - This is a sandbox level, meaning you have all the freedom in the world to build
+    whatever you want and mess around!

@@ -37,6 +37,22 @@ MonoBehaviour:
   twoStarsLengthLimit: 50
   oneStarLengthLimit: 100
   openingDialogue:
-  - HII
-  - AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-  - HII
+  - 'In this first level, part of the structure has already been built for you. '
+  - A structure is made up of <b>multiple beams connected by nodes</b> on the grid
+    points. Nodes are pin joints that hold the ends of the beams together.
+  - 'The structure is fixed to the outside world with <b>two anchor nodes</b>. An
+    anchor node is stuck in place and can not be moved. '
+  - Anchor nodes can be recognised by their color, as they have a <b>darker shade</b>
+    than other members. They are always found at the bottom row or left-most column
+    of the grid.
+  - On the right side of the grid you will find the <b>load-bearing node</b>. A weight
+    is attached to this node, and your goal is to <b>prevent this weight from falling</b>.
+  - 'To complete this structure, you are only given one meter of steel beam as shown
+    in your <b>toolbox on the bottom of your screen</b>. In future levels, you will
+    get more material. '
+  - You can implement a new beam using your available material by <b>drawing a line
+    between two nodes on the grid</b>.
+  - Once you have finished your structure, press the <b>TRUSS ME BRO</b> button to
+    start simulating your structure in action.
+  - "Well, get to work! Let's see what you've got and make sure I don\u2019t die!"
+  - <b>I TRUSS YOU BRO!</b>

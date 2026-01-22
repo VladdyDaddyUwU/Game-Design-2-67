@@ -68,3 +68,8 @@ MonoBehaviour:
   threeStarsLengthLimit: 2.6
   twoStarsLengthLimit: 50
   oneStarLengthLimit: 100
+  openingDialogue:
+  - Would you look at that, the structure in this level is starting to look like
+    an actual crane!
+  - As you can see, a large part of the structure has already been made for you.
+    You just need to apply the finishing touches.

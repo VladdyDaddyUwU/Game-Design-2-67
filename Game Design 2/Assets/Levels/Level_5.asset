@@ -36,3 +36,8 @@ MonoBehaviour:
   threeStarsLengthLimit: 6.1
   twoStarsLengthLimit: 9.1
   oneStarLengthLimit: 100
+  openingDialogue:
+  - Looks like the weight at the <b>load-bearing node</b> got a little heavier. But
+    don't worry, with a strong structure you will be able to hold this weight up
+    no problemo!
+  - "So please don\u2019t let it fall on me. Pretty please\u2026"

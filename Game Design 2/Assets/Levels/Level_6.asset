@@ -40,3 +40,7 @@ MonoBehaviour:
   threeStarsLengthLimit: 10.1
   twoStarsLengthLimit: 15.1
   oneStarLengthLimit: 100
+  openingDialogue:
+  - Try to support the load-bearing node using <b>as little material as possible</b>!
+    The less material you use, the more stars you'll get when you beat the level.
+  - "But if you use too little material, I will take <b>all</b> your stars\u2026"
