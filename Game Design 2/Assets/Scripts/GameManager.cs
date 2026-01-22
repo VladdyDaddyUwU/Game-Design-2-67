@@ -1257,6 +1257,12 @@ public class GameManager : MonoBehaviour
                 string levelDisplayName = (idx == 10) ? "Sandbox" : "Level " + (idx + 1);
                 Debug.Log($"New Session Best for {levelDisplayName}: {stars} Stars!");
             }
+            
+            // Unlock next level permanently for this session
+            if (idx + 1 > LevelData.HighestUnlockedLevel)
+            {
+                LevelData.HighestUnlockedLevel = idx + 1;
+            }
         }
 
         if (uiManager != null) uiManager.ShowLevelComplete(stars);

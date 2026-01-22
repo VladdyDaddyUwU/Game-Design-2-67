@@ -34,6 +34,14 @@ public class LevelDialogueManager : MonoBehaviour
     
     private List<Button> temporarilyDisabledButtons = new List<Button>();
     
+    // Layout Variables
+    private VerticalLayoutGroup bubbleLayout;
+    private int basePadLeft = 50;
+    private int basePadRight = 50;
+    private int basePadTop = 40;
+    private int basePadBottom = 50;
+    private Vector3 initialScreenPos;
+    
     void Awake()
     {
         gameManager = FindObjectOfType<GameManager>();
@@ -227,14 +235,11 @@ public class LevelDialogueManager : MonoBehaviour
             screenPos.x += 50; 
             screenPos.y += 50;
             bubbleObj.transform.position = screenPos;
+            
+            // Store this as the anchor point for dynamic shifting
+            initialScreenPos = screenPos;
         }
     }
-
-    private VerticalLayoutGroup bubbleLayout;
-    private int basePadLeft = 50;
-    private int basePadRight = 50;
-    private int basePadTop = 40;
-    private int basePadBottom = 50;
 
     public void OnDialogueClick()
     {
@@ -328,6 +333,14 @@ public class LevelDialogueManager : MonoBehaviour
         
         bubbleLayout.padding.top = basePadTop + padTopAdd;
         bubbleLayout.padding.bottom = basePadBottom + padBottomAdd;
+        
+        // 4. Adjust Position (Shift Left as it grows)
+        // Move left by 40% of the text width to counteract rightward expansion
+        float xOffset = clampedW * 0.4f;
+        if (bubbleObj != null)
+        {
+            bubbleObj.transform.position = initialScreenPos - new Vector3(xOffset, 0, 0);
+        }
         
         // Force layout rebuild
         LayoutRebuilder.MarkLayoutForRebuild(bubbleLayout.transform as RectTransform);

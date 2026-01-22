@@ -10,6 +10,9 @@ public class LevelData : ScriptableObject
     
     // Store stars earned in the current session (LevelIndex -> StarCount)
     public static Dictionary<int, int> SessionStars = new Dictionary<int, int>();
+    
+    // Track the highest level reached to allow replay of any previous level
+    public static int HighestUnlockedLevel = 0;
 
     [Header("Grid Dimensions")]
     public int gridWidth = 10;

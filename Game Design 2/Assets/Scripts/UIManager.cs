@@ -728,6 +728,7 @@ public class UIManager : MonoBehaviour
         // Generate Buttons (Structure Only)
         if (levelManager != null && levelManager.levels != null)
         {
+            Debug.Log($"SetupLevelSelectMenu: HighestUnlockedLevel = {LevelData.HighestUnlockedLevel}");
             for (int i = 0; i < levelManager.levels.Count; i++)
             {
                 int levelIndex = i; // Capture for lambda
@@ -738,22 +739,24 @@ public class UIManager : MonoBehaviour
                 Button btn = lvlBtn.AddComponent<Button>();
 
                 // CHECK UNLOCK STATUS
-                // Level 0 is always unlocked.
-                // Other levels require the previous level to have at least 1 star (completed).
-                bool isUnlocked = (i == 0) || (LevelData.SessionStars.ContainsKey(i - 1) && LevelData.SessionStars[i - 1] > 0);
+                // Level is unlocked if its index is <= HighestUnlockedLevel
+                bool isUnlocked = (i <= LevelData.HighestUnlockedLevel);
+                
+                Debug.Log($"Level {i} Unlock Check: {isUnlocked} (Index {i} <= Highest {LevelData.HighestUnlockedLevel})");
+
+                // Always add listener. Access is controlled by interactable state.
+                btn.onClick.AddListener(() => {
+                    SelectLevel(levelIndex);
+                });
 
                 if (isUnlocked)
                 {
                     btnImg.color = new Color(1f, 1f, 1f, 0.2f); // Normal
-                    btn.onClick.AddListener(() => {
-                        SelectLevel(levelIndex);
-                    });
+                    btn.interactable = true;
                 }
                 else
                 {
                     btnImg.color = new Color(0.2f, 0.2f, 0.2f, 0.5f); // Dark Grey (Locked)
-                    // No listener added, so it's unclickable (visually active but does nothing)
-                    // Or we can set btn.interactable = false;
                     btn.interactable = false;
                 }
 
@@ -829,11 +832,13 @@ public class UIManager : MonoBehaviour
         levelSelectMenuObj.SetActive(false);
     }
     
-    // Updates the star display on the Level Select Menu
+    // Updates the star display AND lock status on the Level Select Menu
     private void UpdateLevelSelectDisplay()
     {
         if (levelSelectMenuObj == null) return;
         
+        Debug.Log($"UpdateLevelSelectDisplay: HighestUnlockedLevel = {LevelData.HighestUnlockedLevel}");
+
         // Find the Content object which holds all level buttons
         Transform contentTr = levelSelectMenuObj.transform.Find("ScrollView/Viewport/Content");
         if (contentTr == null) return;
@@ -846,6 +851,27 @@ public class UIManager : MonoBehaviour
                 string indexStr = child.name.Replace("Level_", "");
                 if (int.TryParse(indexStr, out int levelIndex))
                 {
+                    // --- UPDATE LOCK STATUS ---
+                    bool isUnlocked = (levelIndex <= LevelData.HighestUnlockedLevel);
+                    Button btn = child.GetComponent<Button>();
+                    Image img = child.GetComponent<Image>();
+                    Transform txtTr = child.Find("Text");
+                    Text txt = (txtTr != null) ? txtTr.GetComponent<Text>() : null;
+
+                    if (isUnlocked)
+                    {
+                        if (img != null) img.color = new Color(1f, 1f, 1f, 0.2f);
+                        if (btn != null) btn.interactable = true;
+                        if (txt != null) txt.color = Color.white;
+                    }
+                    else
+                    {
+                        if (img != null) img.color = new Color(0.2f, 0.2f, 0.2f, 0.5f);
+                        if (btn != null) btn.interactable = false;
+                        if (txt != null) txt.color = new Color(0.6f, 0.6f, 0.6f);
+                    }
+
+                    // --- UPDATE STARS ---
                     Transform starsHolder = child.Find("Stars");
                     if (starsHolder != null)
                     {
@@ -859,7 +885,7 @@ public class UIManager : MonoBehaviour
                             starsEarned = LevelData.SessionStars[levelIndex];
                         }
                         
-                        // Create Star Icons
+                        // Create Star Icons (Only if unlocked, or show empty stars? Let's show earned.)
                         for (int s = 0; s < starsEarned; s++)
                         {
                             GameObject starIcon = new GameObject("Star");
