@@ -71,6 +71,11 @@ public class LevelDialogueManager : MonoBehaviour
         }
     }
 
+    public bool IsDialogueActive()
+    {
+        return (dialogueCanvas != null && dialogueCanvas.activeSelf);
+    }
+
     public void StartLevelDialogue(List<string> lines, Vector3 targetWorldPos)
     {
         Debug.Log($"LevelDialogueManager: Starting dialogue with {lines.Count} lines.");
@@ -159,25 +164,35 @@ public class LevelDialogueManager : MonoBehaviour
         if (bubbleSprite != null) 
         {
             img.sprite = bubbleSprite;
-            img.type = Image.Type.Simple; 
-            img.preserveAspect = true;
+            // Use Sliced to allow resizing while keeping corners/tail fixed.
+            // IMPORTANT: You MUST set up "Borders" in the Sprite Editor in Unity for this to work!
+            img.type = Image.Type.Sliced; 
+            img.pixelsPerUnitMultiplier = 1.0f;
         }
         else
         {
-            // If sprite is missing, it will be a white rectangle.
-            // Let's set it to a semi-transparent black box so it looks intentional at least.
             img.color = new Color(0, 0, 0, 0.5f);
             Debug.LogError("LevelDialogueManager: Bubble Sprite is MISSING! Showing default rectangle.");
         }
         
         RectTransform rect = bubbleObj.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(400, 200); // Slightly larger
+        // Size will be controlled by ContentSizeFitter, but we set a pivot
         rect.pivot = new Vector2(1f, 0f); // Pivot on the side where the tail is
         
         // Flip the bubble horizontally so the tail (on the right) now points left
-        // Because pivot is at 1.0 (right edge), flipping it makes the bubble 
-        // expand to the right of the anchor point.
         bubbleObj.transform.localScale = new Vector3(-1, 1, 1);
+
+        // Add Layout components for dynamic sizing
+        VerticalLayoutGroup layout = bubbleObj.AddComponent<VerticalLayoutGroup>();
+        // Add significant padding so text doesn't overlap the bubble edges/tail
+        layout.padding = new RectOffset(50, 50, 40, 50); 
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        
+        ContentSizeFitter fitter = bubbleObj.AddComponent<ContentSizeFitter>();
+        fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         
         // 3. Text
         GameObject txtObj = new GameObject("Text");
@@ -187,19 +202,19 @@ public class LevelDialogueManager : MonoBehaviour
         txtObj.transform.localScale = new Vector3(-1, 1, 1);
         
         bubbleText = txtObj.AddComponent<Text>();
-        bubbleText.raycastTarget = false; // Allow clicks to pass through to the background
+        bubbleText.raycastTarget = false; 
         bubbleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        bubbleText.fontSize = 20;
+        bubbleText.fontSize = 60; // Increased size as requested
         bubbleText.color = Color.black;
         bubbleText.alignment = TextAnchor.MiddleLeft;
-        bubbleText.horizontalOverflow = HorizontalWrapMode.Wrap;
-        bubbleText.verticalOverflow = VerticalWrapMode.Overflow;
+        // Overflow settings to allow Fitter to measure text
+        bubbleText.horizontalOverflow = HorizontalWrapMode.Wrap; 
+        bubbleText.verticalOverflow = VerticalWrapMode.Truncate; 
         
-        RectTransform txtRect = txtObj.GetComponent<RectTransform>();
-        txtRect.anchorMin = new Vector2(0.1f, 0.1f);
-        txtRect.anchorMax = new Vector2(0.9f, 0.9f);
-        txtRect.offsetMin = Vector2.zero;
-        txtRect.offsetMax = Vector2.zero;
+        // Add LayoutElement to define the wrapping point.
+        LayoutElement layoutElem = txtObj.AddComponent<LayoutElement>();
+        // Start with no preference, let the text dictate size until clamped
+        layoutElem.preferredWidth = -1;  
     }
 
     private void PositionBubble(Vector3 targetWorldPos)
@@ -215,10 +230,11 @@ public class LevelDialogueManager : MonoBehaviour
         }
     }
 
-    public bool IsDialogueActive()
-    {
-        return (dialogueCanvas != null && dialogueCanvas.activeSelf);
-    }
+    private VerticalLayoutGroup bubbleLayout;
+    private int basePadLeft = 50;
+    private int basePadRight = 50;
+    private int basePadTop = 40;
+    private int basePadBottom = 50;
 
     public void OnDialogueClick()
     {
@@ -232,6 +248,7 @@ public class LevelDialogueManager : MonoBehaviour
         }
     }
     
+    // Allow 'Space' to advance too
     void Update()
     {
         if (gameManager == null) return;
@@ -254,8 +271,6 @@ public class LevelDialogueManager : MonoBehaviour
             if (Input.anyKeyDown)
             {
                 // Check if clicking on UI (e.g. Pause Button)
-                // IsPointerOverGameObject() checks if the mouse is hovering over a UI element that catches events.
-                // We assume if it's a keyboard press, we proceed. If mouse, we check UI.
                 if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2))
                 {
                     if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
@@ -278,13 +293,55 @@ public class LevelDialogueManager : MonoBehaviour
         typingCoroutine = StartCoroutine(TypeLine(line));
     }
 
+    private void UpdateBubbleSize()
+    {
+        if (bubbleText == null || bubbleLayout == null) return;
+        
+        float w = bubbleText.preferredWidth;
+        float h = bubbleText.preferredHeight;
+        // Reduced horizontal limit by 20% (1125 * 0.8 = 900)
+        float clampedW = Mathf.Min(w, 900f); 
+        
+        // 1. Enforce Wrapping Limit on Text
+        LayoutElement le = bubbleText.GetComponent<LayoutElement>();
+        if (le != null)
+        {
+             le.preferredWidth = clampedW;
+        }
+        
+        // 2. Add dynamic padding to Parent Bubble (Horizontal)
+        // Bubble grows linearly 1.2x relative to text
+        int extraPadX = Mathf.RoundToInt(clampedW * 0.2f);
+        int halfExtraX = extraPadX / 2;
+        
+        bubbleLayout.padding.left = basePadLeft + halfExtraX;
+        bubbleLayout.padding.right = basePadRight + halfExtraX;
+        
+        // 3. Add dynamic padding to Parent Bubble (Vertical)
+        // Vertical scaling increased by another 20% (0.5 + 0.2 = 0.7)
+        int extraPadY = Mathf.RoundToInt(h * 0.7f);
+        int halfExtraY = extraPadY / 2;
+        
+        bubbleLayout.padding.top = basePadTop + halfExtraY;
+        bubbleLayout.padding.bottom = basePadBottom + halfExtraY;
+        
+        // Force layout rebuild
+        LayoutRebuilder.MarkLayoutForRebuild(bubbleLayout.transform as RectTransform);
+    }
+
     IEnumerator TypeLine(string line)
     {
         isTyping = true;
         bubbleText.text = "";
+        
+        // Cache Layout Group reference if missing
+        if (bubbleLayout == null && bubbleObj != null) 
+            bubbleLayout = bubbleObj.GetComponent<VerticalLayoutGroup>();
+
         foreach(char c in line)
         {
             bubbleText.text += c;
+            UpdateBubbleSize();
             yield return new WaitForSeconds(typingSpeed);
         }
         isTyping = false;
@@ -294,6 +351,12 @@ public class LevelDialogueManager : MonoBehaviour
     {
         if (typingCoroutine != null) StopCoroutine(typingCoroutine);
         bubbleText.text = currentLines[currentLineIndex];
+        
+        if (bubbleLayout == null && bubbleObj != null) 
+            bubbleLayout = bubbleObj.GetComponent<VerticalLayoutGroup>();
+            
+        UpdateBubbleSize();
+        
         isTyping = false;
     }
 
