@@ -39,6 +39,10 @@ public class GameManager : MonoBehaviour
     public float loadMass = 40000f;
     public Vector2 gravity = new Vector2(0, -9.81f);
 
+    [Header("Theory Menu Images")]
+    [Tooltip("Order: 0=Truss, 1=AxialArrows, 2=BendVsAxial, 3=Tensile, 4=Snapping, 5=Compressed, 6=Buckling")]
+    public List<Sprite> theoryImages = new List<Sprite>();
+
     private Dictionary<int, Node> nodeMap = new Dictionary<int, Node>();
     private List<Node> allNodes = new List<Node>();
     private List<Vector2> nodePositions;

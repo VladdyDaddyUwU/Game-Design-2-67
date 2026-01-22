@@ -497,23 +497,41 @@ public class UIManager : MonoBehaviour
         }
 
         // Helper to create Image Placeholder
-        void AddImagePlaceholder(string label)
+        void AddImagePlaceholder(string label, int index = -1)
         {
             GameObject iObj = new GameObject("Img_" + label);
             iObj.transform.SetParent(contentObj.transform, false);
             Image img = iObj.AddComponent<Image>();
-            img.color = new Color(0.2f, 0.2f, 0.2f, 0.5f); // Grey placeholder
             
-            // Text label inside
-            GameObject tObj = new GameObject("Label");
-            tObj.transform.SetParent(iObj.transform, false);
-            TextMeshProUGUI t = tObj.AddComponent<TextMeshProUGUI>();
-            t.text = $"[Image: {label}]";
-            t.fontSize = 20;
-            t.alignment = TextAlignmentOptions.Center;
-            t.color = Color.yellow;
-            RectTransform tr = tObj.GetComponent<RectTransform>();
-            tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = Vector2.zero; tr.offsetMax = Vector2.zero;
+            // Try to load Sprite from the GameManager list if index is valid
+            Sprite loadedSprite = null;
+            GameManager gm = FindObjectOfType<GameManager>();
+            if (gm != null && index >= 0 && gm.theoryImages != null && index < gm.theoryImages.Count)
+            {
+                loadedSprite = gm.theoryImages[index];
+            }
+
+            if (loadedSprite != null)
+            {
+                img.sprite = loadedSprite;
+                img.color = Color.white; // Show sprite colors naturally
+                img.preserveAspect = true; // Maintain image aspect ratio
+            }
+            else
+            {
+                img.color = new Color(0.2f, 0.2f, 0.2f, 0.5f); // Grey placeholder
+                
+                // Text label inside (Only show if no image)
+                GameObject tObj = new GameObject("Label");
+                tObj.transform.SetParent(iObj.transform, false);
+                TextMeshProUGUI t = tObj.AddComponent<TextMeshProUGUI>();
+                t.text = $"[Image: {label}]";
+                t.fontSize = 20;
+                t.alignment = TextAlignmentOptions.Center;
+                t.color = Color.yellow;
+                RectTransform tr = tObj.GetComponent<RectTransform>();
+                tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = Vector2.zero; tr.offsetMax = Vector2.zero;
+            }
 
             LayoutElement le = iObj.AddComponent<LayoutElement>();
             le.minHeight = 200;
@@ -523,16 +541,16 @@ public class UIManager : MonoBehaviour
         // 1. Fundamentals
         AddHeader("1. Truss Fundamentals");
         AddText("A truss structure consists of beams connected through pin joints. Using these beams, you can create very strong, lightweight structures used to support heavy loads.");
-        AddImagePlaceholder("Truss Structure");
+        AddImagePlaceholder("Truss Structure", 0);
         AddText("Truss structures are used to efficiently distribute the weight they carry through their members. They are built in a way to only subject members to <b>axial loading</b>, without any bending moments.");
-        AddImagePlaceholder("Axial Force Arrows");
+        AddImagePlaceholder("Axial Force Arrows", 1);
         AddText("This is very beneficial, as materials perform better in tension or compression than in bending.");
-        AddImagePlaceholder("Animation: Bending vs Axial");
+        AddImagePlaceholder("Animation: Bending vs Axial", 2);
 
         // 2. Tensile
         AddHeader("2. Tensile Members");
         AddText("Members that are being \"pulled\" at both ends are under <b>tension</b>.");
-        AddImagePlaceholder("Tensile Member");
+        AddImagePlaceholder("Tensile Member", 3);
         AddText("The stress a tensile member is subjected to can be calculated by:");
         AddText("<color=yellow><i>σ</i> = <i>F</i> / <i>A</i></color>", 30, true);
         AddText("Where:\n• <b><i>σ</i></b> is the stress.\n• <b><i>F</i></b> is the force acting on the member.\n• <b><i>A</i></b> is the cross-sectional area.");
@@ -543,15 +561,15 @@ public class UIManager : MonoBehaviour
 
         AddHeader("Tensile Failure");
         AddText("This member will start deforming <b>plastically</b> (irreversibly) when the stress exceeds the material’s yield stress (<i>σ</i><sub>y</sub>).");
-        AddImagePlaceholder("Animation: Beam Snapping");
+        AddImagePlaceholder("Animation: Beam Snapping", 4);
         AddText("<b>Goal:</b> Always keep stress under the yield stress. Click the <b>%</b> button to see how close members are. If > 100%, support or replace it!");
 
         // 3. Compression
         AddHeader("3. Compressed Members");
         AddText("Members that are being \"pushed\" at both ends are being <b>compressed</b>.");
-        AddImagePlaceholder("Compressed Member");
+        AddImagePlaceholder("Compressed Member", 5);
         AddText("While compressed members fail if yield stress is exceeded, they often <b>buckle</b> before that happens.");
-        AddImagePlaceholder("Animation: Beam Buckling");
+        AddImagePlaceholder("Animation: Beam Buckling", 6);
 
         AddHeader("Euler's Critical Load");
         AddText("Compressed members buckle when their Euler's Critical Load (<i>P</i><sub>cr</sub>) is reached:");
