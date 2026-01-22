@@ -728,6 +728,20 @@ public class GameManager : MonoBehaviour
     public void TriggerLevelDialogue()
     {
         Debug.Log("GameManager: TriggerLevelDialogue called.");
+        
+        // Ensure reference is found if missing (Race condition safety)
+        if (dialogueManager == null)
+        {
+            dialogueManager = FindObjectOfType<LevelDialogueManager>();
+            // If still null (e.g. Start hasn't run yet to create it), create it now.
+            if (dialogueManager == null)
+            {
+                Debug.Log("GameManager: Creating missing LevelDialogueManager.");
+                GameObject dlgObj = new GameObject("LevelDialogueManager");
+                dialogueManager = dlgObj.AddComponent<LevelDialogueManager>();
+            }
+        }
+
         bool hasDialogue = false;
         if (gridController != null && gridController.currentLevel != null)
         {
