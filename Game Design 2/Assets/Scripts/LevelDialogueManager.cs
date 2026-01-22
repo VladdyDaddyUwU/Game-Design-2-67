@@ -320,10 +320,14 @@ public class LevelDialogueManager : MonoBehaviour
         // 3. Add dynamic padding to Parent Bubble (Vertical)
         // Vertical scaling increased by another 20% (0.5 + 0.2 = 0.7)
         int extraPadY = Mathf.RoundToInt(h * 0.7f);
-        int halfExtraY = extraPadY / 2;
         
-        bubbleLayout.padding.top = basePadTop + halfExtraY;
-        bubbleLayout.padding.bottom = basePadBottom + halfExtraY;
+        // Distribute unevenly to keep text closer to the top as it scales.
+        // 30% of growth goes to Top padding, 70% goes to Bottom padding.
+        int padTopAdd = Mathf.RoundToInt(extraPadY * 0.3f);
+        int padBottomAdd = extraPadY - padTopAdd;
+        
+        bubbleLayout.padding.top = basePadTop + padTopAdd;
+        bubbleLayout.padding.bottom = basePadBottom + padBottomAdd;
         
         // Force layout rebuild
         LayoutRebuilder.MarkLayoutForRebuild(bubbleLayout.transform as RectTransform);
