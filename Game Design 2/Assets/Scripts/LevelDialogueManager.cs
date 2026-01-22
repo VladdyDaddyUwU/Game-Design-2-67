@@ -372,6 +372,16 @@ public class LevelDialogueManager : MonoBehaviour
         if (bubbleLayout == null && bubbleObj != null) 
             bubbleLayout = bubbleObj.GetComponent<VerticalLayoutGroup>();
             
+        // Force update to ensure Text component has calculated dimensions for the full string
+        Canvas.ForceUpdateCanvases();
+        
+        // First pass: Sets the Width Constraint (LayoutElement) based on raw text width
+        UpdateBubbleSize();
+        
+        // Force update again so Text component recalculates Height based on the new Width Constraint
+        Canvas.ForceUpdateCanvases();
+        
+        // Second pass: Calculates correct Vertical Padding based on the now-wrapped Height
         UpdateBubbleSize();
         
         isTyping = false;
